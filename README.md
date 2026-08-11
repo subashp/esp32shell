@@ -52,6 +52,7 @@ New-Item -ItemType Directory -Force .build\arduino | Out-Null
 
 arduino-cli compile `
   --fqbn esp32:esp32:esp32s3 `
+  --board-options "FlashSize=32M,PSRAM=opi" `
   --build-path .build\arduino `
   --warnings all `
   $sketch
@@ -64,7 +65,7 @@ Target configuration:
 - PSRAM: `OPI PSRAM`
 - Partition table: `firmware/arduino/esp32shell/partitions.csv`
 
-Use `arduino-cli board details --fqbn esp32:esp32:esp32s3` to inspect the exact board-option names exposed by the installed core before adding `--board-options` to an automated build script.
+The `--board-options` values are important. Without `FlashSize=32M`, Arduino CLI defaults this generic board to 4MB and produces a boot image that rejects the 32MB partition table. Confirm the generated `.build\arduino\flash_args` contains `--flash-size 32MB` before flashing.
 
 ### Flash COM4
 
@@ -78,6 +79,14 @@ arduino-cli upload `
   --port COM4 `
   --input-dir .build\arduino
 ```
+
+Before reflashing after a partition-size error, identify the physical flash size without erasing it:
+
+```powershell
+esptool --port COM4 flash-id
+```
+
+If `flash-id` reports 4MB, use a 4MB partition scheme or verify the board/module variant. If it reports 32MB, rebuild with `--board-options "FlashSize=32M,PSRAM=opi"` and reflash the bootloader, partition table, and application.
 
 If the ESP32-S3 does not enumerate, hold `BOOT`, tap `RESET`, release `BOOT`, and repeat `arduino-cli board list`. A data-capable USB cable and the board's native USB connector are required.
 

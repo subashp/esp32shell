@@ -15,7 +15,7 @@ This is the detailed execution plan for turning the Arduino serial shell into a 
 The standard acceptance loop is:
 
 ```powershell
-arduino-cli compile --fqbn esp32:esp32:esp32s3 --build-path .build\arduino --warnings all firmware\arduino\esp32shell
+arduino-cli compile --fqbn esp32:esp32:esp32s3 --board-options "FlashSize=32M,PSRAM=opi" --build-path .build\arduino --warnings all firmware\arduino\esp32shell
 arduino-cli upload --fqbn esp32:esp32:esp32s3 --port COM4 --input-dir .build\arduino
 arduino-cli monitor --port COM4 --config baudrate=115200
 ```
@@ -52,7 +52,7 @@ The CLI configuration and downloaded platform are user-local. The repository doc
 
 The build script should verify Arduino CLI, the pinned ESP32 core, the partition table, and the expected `.elf`, `.bin`, partition binary, and map outputs. It should compile with `--warnings all` into `.build/arduino`, report size, and fail if required board options are unavailable.
 
-Target options are 32MB Flash, OPI PSRAM, and an OTA-capable partition scheme. Board option names can vary by core release, so the script must validate them with `arduino-cli board details` rather than silently guessing.
+Target options are 32MB Flash, OPI PSRAM, and an OTA-capable partition scheme. The generic ESP32-S3 board defaults to 4MB unless `--board-options "FlashSize=32M,PSRAM=opi"` is supplied. The generated `.build\arduino\flash_args` must contain `--flash-size 32MB` before flashing. Board option names can vary by core release, so the script must validate them with `arduino-cli board details` rather than silently guessing.
 
 ### 2.3 Flash and serial acceptance
 
@@ -77,6 +77,14 @@ wifi-status
 ```
 
 If no port appears, use a data-capable USB cable, connect to the native USB connector, and enter ROM download mode by holding `BOOT`, tapping `RESET`, and releasing `BOOT`.
+
+Before reflashing after a partition-size error, identify the physical flash size without erasing it:
+
+```powershell
+esptool --port COM4 flash-id
+```
+
+If it reports 4MB, the 32MB partition table cannot be used; verify the board/module variant or switch to a 4MB partition layout. If it reports 32MB, rebuild with the explicit 32MB board options and reflash the bootloader, partition table, and application.
 
 ## 3. Phase 2: Wi-Fi and persistent configuration
 

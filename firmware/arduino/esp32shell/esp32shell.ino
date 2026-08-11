@@ -13,6 +13,7 @@ using esp32shell::WifiService;
 using esp32shell::WifiState;
 
 String readLine;
+bool lineEndingSeen = false;
 CommandCore commandCore;
 
 class ArduinoWifiDriver final : public WifiDriver {
@@ -104,11 +105,16 @@ void loop() {
   while (Serial.available()) {
     char c = static_cast<char>(Serial.read());
     if (c == '\n' || c == '\r') {
-      commandCore.dispatch(readLine.c_str(), serialOutput, services);
-      readLine = "";
-      Serial.print("esp32shell> ");
+      // Serial monitors commonly send CRLF. Treat the pair as one line ending.
+      if (!lineEndingSeen) {
+        commandCore.dispatch(readLine.c_str(), serialOutput, services);
+        readLine = "";
+        Serial.print("esp32shell> ");
+      }
+      lineEndingSeen = true;
     } else if (readLine.length() < CommandCore::kMaxCommandLength + 1) {
       readLine += c;
+      lineEndingSeen = false;
     }
   }
 }
