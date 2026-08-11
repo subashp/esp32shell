@@ -73,22 +73,33 @@ class CommandCore {
     }
     const char* wifiConfigPrefix = "wifi-config ";
     const size_t wifiConfigPrefixLength = strlen(wifiConfigPrefix);
+    if (equals(command, length, "wifi-config")) {
+      output.line("error: usage wifi-config <ssid> <password>");
+      return CommandStatus::Invalid;
+    }
     if (length > wifiConfigPrefixLength && strncmp(command, wifiConfigPrefix, wifiConfigPrefixLength) == 0) {
       return services.wifiConfig(command + wifiConfigPrefixLength, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
     if (equals(command, length, "config-list")) { services.configList(output); return CommandStatus::Ok; }
+    if (equals(command, length, "config-get")) { output.line("error: usage config-get <key>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "config-get ")) { services.configGet(command + 11, output); return CommandStatus::Ok; }
+    if (equals(command, length, "config-set")) { output.line("error: usage config-set <key> <value>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "config-set ")) {
       return services.configSet(command + 11, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
+    if (equals(command, length, "config-clear")) { output.line("error: usage config-clear --confirm"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "config-clear ")) {
       return services.configClear(command + 13, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
+    if (equals(command, length, "fs-list")) { output.line("error: usage fs-list <directory>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "fs-list ")) { services.fsList(command + 8, output); return CommandStatus::Ok; }
+    if (equals(command, length, "fs-read")) { output.line("error: usage fs-read <path>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "fs-read ")) { services.fsRead(command + 8, output); return CommandStatus::Ok; }
+    if (equals(command, length, "fs-write")) { output.line("error: usage fs-write <path> <content>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "fs-write ")) {
       return services.fsWrite(command + 9, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
+    if (equals(command, length, "fs-remove")) { output.line("error: usage fs-remove <path> --confirm"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "fs-remove ")) {
       return services.fsRemove(command + 10, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
@@ -96,7 +107,9 @@ class CommandCore {
     if (equals(command, length, "reset-reason")) { services.resetReason(output); return CommandStatus::Ok; }
     if (equals(command, length, "tasks")) { services.tasks(output); return CommandStatus::Ok; }
     if (equals(command, length, "gpio-modes")) { services.gpioModes(output); return CommandStatus::Ok; }
+    if (equals(command, length, "gpio-read")) { output.line("error: usage gpio-read <allowlisted-pin>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "gpio-read ")) { services.gpioRead(command + 10, output); return CommandStatus::Ok; }
+    if (equals(command, length, "gpio-write")) { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return CommandStatus::Invalid; }
     if (startsWith(command, length, "gpio-write ")) {
       return services.gpioWrite(command + 11, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
@@ -123,7 +136,7 @@ class CommandCore {
     output.line("  heap         Show free heap");
     output.line("  reboot       Restart the device");
     output.line("  wifi-status  Show Wi-Fi state");
-    output.line("  wifi-config  Configure Wi-Fi in RAM");
+    output.line("  wifi-config  Configure and persist Wi-Fi");
     output.line("  config-list   List persisted configuration keys");
     output.line("  config-get    Read a configuration value");
     output.line("  config-set    Set a configuration value");

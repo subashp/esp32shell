@@ -45,6 +45,21 @@ class CommandCoreContractTests(unittest.TestCase):
         self.assertIn("SessionClosed", self.core)
         self.assertIn("press Ctrl-C to exit", self.sketch)
 
+    def test_argument_commands_provide_usage_without_arguments(self):
+        for usage in (
+            "usage wifi-config <ssid> <password>",
+            "usage config-get <key>",
+            "usage config-set <key> <value>",
+            "usage config-clear --confirm",
+            "usage fs-list <directory>",
+            "usage fs-read <path>",
+            "usage fs-write <path> <content>",
+            "usage fs-remove <path> --confirm",
+            "usage gpio-read <allowlisted-pin>",
+            "usage gpio-write <allowlisted-pin> <0|1>",
+        ):
+            self.assertIn(usage, self.core)
+
 
 if __name__ == "__main__":
     unittest.main()
