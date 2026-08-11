@@ -1,7 +1,10 @@
 from pathlib import Path
 import unittest
 
-from validate_partitions import REQUIRED, validate
+try:
+    from validate_partitions import REQUIRED, validate
+except ModuleNotFoundError:  # Direct execution from the repository root.
+    from tools.validate_partitions import REQUIRED, validate
 
 
 ROOT = Path(__file__).resolve().parents[1]

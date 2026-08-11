@@ -5,6 +5,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SSH = ROOT / "firmware/arduino/esp32shell/ssh_session.h"
 TRANSPORT = ROOT / "firmware/arduino/esp32shell/ssh_transport.h"
+SUBMODULES = ROOT / ".gitmodules"
+DEPENDENCIES = ROOT / "third_party/README.md"
 
 
 class SshSessionContractTests(unittest.TestCase):
@@ -27,6 +29,14 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("disabled-no-wolfssh", source)
         self.assertIn("acceptsPlaintextFallback", source)
         self.assertIn("return false", source)
+
+    def test_official_dependencies_are_pinned(self):
+        modules = SUBMODULES.read_text(encoding="utf-8")
+        dependencies = DEPENDENCIES.read_text(encoding="utf-8")
+        self.assertIn("github.com/wolfSSL/wolfssl.git", modules)
+        self.assertIn("github.com/wolfSSL/wolfssh.git", modules)
+        self.assertIn("ac01707f552c611fbd135cc723b2682b3e7f80f2", dependencies)
+        self.assertIn("8643d7be841184f766374e3b0ed68ced6391543c", dependencies)
 
 
 if __name__ == "__main__":
