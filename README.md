@@ -4,7 +4,7 @@ An experimental SSH-accessible command shell and device toolbox for the ESP32-S3
 
 ## Current status
 
-The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
+The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. Boot/banner acceptance is verified, including the 32MB partition table and coredump partition. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
 
 The remaining work is tracked in [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md). Machine-local build output and credentials must remain untracked.
 

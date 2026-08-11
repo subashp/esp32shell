@@ -6,10 +6,10 @@ This is the execution source of truth. Work proceeds one task at a time; each ta
 
 - [x] Create repository structure and Git hygiene.
 - [x] Add Arduino ESP32-S3 serial bring-up sketch.
-- [ ] Verify the sketch compiles and flashes on the user's board.
-- [ ] Record the working COM port and Arduino core version without committing machine-local state.
+- [x] Verify the sketch compiles and flashes on the user's board.
+- [x] Record the working COM port (`COM4`) and Arduino core version (`3.3.11`) without committing machine-local state.
 
-Acceptance: the board boots, prints a banner, and answers `help` and `device-info` over Serial Monitor.
+Acceptance: boot/banner acceptance is verified on COM4; manually run `help` and `device-info` and record the output as hardware validation.
 
 ## Phase 1 — Transport-neutral command core
 
@@ -18,7 +18,7 @@ Acceptance: the board boots, prints a banner, and answers `help` and `device-inf
 - Add `help`, `version`, `device-info`, `uptime`, `heap`, and `reboot`.
 - [x] Add host-side parser tests where practical.
 
-Acceptance: host parser contract passes; board serial acceptance remains pending COM-port access.
+Acceptance: host parser contract passes; serial transport is booted on COM4, with command-response verification remaining a manual hardware test.
 
 ## Phase 2 — Wi-Fi service
 

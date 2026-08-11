@@ -9,6 +9,7 @@ This is the detailed execution plan for turning the Arduino serial shell into a 
 - Arduino-ESP32 core: 3.3.11.
 - Serial port: `COM4`.
 - Firmware: builds and has been flashed through Arduino CLI.
+- Boot acceptance: verified on COM4; the banner appears, the 32MB partition table loads, and no coredump-partition warning appears after the latest flash.
 - Build output: `.build/arduino/`; machine-local and never committed.
 - Source partition table: `firmware/arduino/esp32shell/partitions.csv`.
 
@@ -75,6 +76,8 @@ uptime
 heap
 wifi-status
 ```
+
+The boot/banner portion of this acceptance is verified. Command-response checks are intentionally manual hardware tests because they require the physical board and serial monitor; record successful output in the task commit or release notes rather than fabricating host-test evidence.
 
 If no port appears, use a data-capable USB cable, connect to the native USB connector, and enter ROM download mode by holding `BOOT`, tapping `RESET`, and releasing `BOOT`.
 
