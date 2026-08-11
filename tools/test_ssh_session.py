@@ -58,6 +58,14 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("esp_wifi_connect", source)
         self.assertIn("Wi-Fi disabled", source)
 
+    def test_idf_mounts_littlefs_without_formatting_on_failure(self):
+        source = (ROOT / "firmware/esp-idf/main/littlefs_mount.cpp").read_text(encoding="utf-8")
+        manifest = (ROOT / "firmware/esp-idf/main/idf_component.yml").read_text(encoding="utf-8")
+        self.assertIn("joltwallet/littlefs", manifest)
+        self.assertIn('partition_label = kPartitionLabel', source)
+        self.assertIn('format_if_mount_failed = false', source)
+        self.assertIn('base_path = kBasePath', source)
+
 
 if __name__ == "__main__":
     unittest.main()

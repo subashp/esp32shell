@@ -6,6 +6,7 @@
 #include "nvs_flash.h"
 #include "ssh_server.h"
 #include "wifi_station.h"
+#include "littlefs_mount.h"
 
 extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
@@ -23,5 +24,8 @@ extern "C" void app_main() {
     printf("esp32shell wolfSSH server ready; waiting for Wi-Fi IP\n");
     if (!esp32shell_wifi_start()) {
         printf("esp32shell Wi-Fi not configured; SSH remains disabled\n");
+    }
+    if (!esp32shell_littlefs_mount()) {
+        printf("esp32shell LittleFS unavailable; uploads remain disabled\n");
     }
 }

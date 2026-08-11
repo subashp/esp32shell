@@ -44,13 +44,13 @@ class CommandServices final : public esp32shell::DeviceServices {
       output.line("error: usage fs-write /apps/<name> <content>");
       return false;
     }
-    char path[64] = {};
+    char path[80] = "/littlefs";
     const size_t pathLength = static_cast<size_t>(separator - arguments);
-    if (pathLength >= sizeof(path)) {
+    if (pathLength + std::strlen(path) >= sizeof(path)) {
       output.line("error: upload path is too long");
       return false;
     }
-    std::memcpy(path, arguments, pathLength);
+    std::memcpy(path + std::strlen(path), arguments, pathLength);
     FILE* file = std::fopen(path, "wb");
     if (file == nullptr) {
       output.line("error: LittleFS upload backend is not mounted");
