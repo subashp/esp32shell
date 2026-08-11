@@ -1,0 +1,25 @@
+# Arduino and ESP-IDF build output
+build/
+.pio/
+*.elf
+*.map
+*.bin
+*.hex
+*.uf2
+sdkconfig
+sdkconfig.old
+
+# IDE and machine-local state
+.vscode/
+.idea/
+.arduinoIDE/
+*.code-workspace
+
+# Secrets and device-local state
+.env
+*.pem
+*.key
+credentials*
+secrets/
+device-state/
+logs/
