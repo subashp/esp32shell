@@ -25,6 +25,7 @@ class StoragePolicyContractTests(unittest.TestCase):
         sketch = SKETCH.read_text(encoding="utf-8")
         for symbol in ("Preferences", "LittleFS", "beginStorage", "loadWifi", "configList", "fsList", "fsWrite", "fsRemove"):
             self.assertIn(symbol, sketch)
+        self.assertIn('LittleFS.begin(true, "/littlefs", 10, "littlefs")', sketch)
         core = CORE.read_text(encoding="utf-8")
         for command in ("config-list", "config-get", "config-set", "config-clear", "fs-list", "fs-read", "fs-write", "fs-remove"):
             self.assertIn(command, core)

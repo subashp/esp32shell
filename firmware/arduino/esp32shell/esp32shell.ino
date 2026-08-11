@@ -269,7 +269,10 @@ class Esp32Services final : public DeviceServices {
   }
   void beginStorage() {
     preferences_.begin("esp32shell", false);
-    LittleFS.begin(true);
+    // The partition table labels this data partition "littlefs". The
+    // Arduino default is "spiffs", which would make initialization fail
+    // even though the partition exists.
+    LittleFS.begin(true, "/littlefs", 10, "littlefs");
   }
   void loadWifi() {
     String ssid = preferences_.getString("wifi_ssid", "");
