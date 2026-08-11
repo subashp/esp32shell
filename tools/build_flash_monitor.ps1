@@ -6,7 +6,7 @@ param(
     [string]$Esp32CoreVersion = "3.3.11",
     [string]$CliStateRoot = "",
     [int]$BootstrapRetries = 2,
-    [string[]]$TestCommands = @("help", "version", "device-info", "uptime", "heap", "wifi-status", "app-list", "app-run diagnostics", "app-status", "app-stop diagnostics", "app-status", "exit", "quit"),
+    [string[]]$TestCommands = @("help", "version", "device-info", "uptime", "heap", "wifi-status", "app-list", "app-run diagnostics", "app-status", "app-stop diagnostics", "app-run led-blink", "app-status", "app-stop led-blink", "app-status", "exit", "quit"),
     [int]$TestTimeoutSeconds = 2,
     [switch]$Clean,
     [switch]$ResetCliState,
@@ -183,6 +183,8 @@ function Invoke-UartTerminalTest {
                 "app-run diagnostics" { "diagnostics started"; break }
                 "app-status" { "diagnostics="; break }
                 "app-stop diagnostics" { "diagnostics stopped"; break }
+                "app-run led-blink" { "led-blink started"; break }
+                "app-stop led-blink" { "led-blink stopped"; break }
                 "exit" { "serial monitor remains active"; break }
                 "quit" { "serial monitor remains active"; break }
                 default { throw "No expected output is defined for UART test command '$command'." }

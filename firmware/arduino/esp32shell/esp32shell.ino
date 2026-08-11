@@ -60,6 +60,7 @@ class Esp32Services final : public DeviceServices {
  public:
   Esp32Services() {
     supervisor_.registerApp("diagnostics", {4096, 20000, 0});
+    supervisor_.registerApp("led-blink", {3072, 20000, 0});
   }
   void deviceInfo(CommandOutput& output) override {
     Serial.printf("chip=%s cores=%d cpu_mhz=%lu", ESP.getChipModel(), ESP.getChipCores(),
@@ -272,10 +273,22 @@ class Esp32Services final : public DeviceServices {
   void otaStatus(CommandOutput& output) override { output.line(ota_.state()); }
   void appList(CommandOutput& output) override {
     output.line(diagnosticsTask_ == nullptr ? "diagnostics stopped" : "diagnostics running");
+    output.line(ledBlinkTask_ == nullptr ? "led-blink stopped" : "led-blink running");
   }
   bool appRun(const char* arguments, CommandOutput& output) override {
-    if (arguments == nullptr || strcmp(arguments, "diagnostics") != 0) {
-      output.line("error: unknown app; available app: diagnostics"); return false;
+    if (arguments == nullptr || (strcmp(arguments, "diagnostics") != 0 && strcmp(arguments, "led-blink") != 0)) {
+      output.line("error: unknown app; available apps: diagnostics led-blink"); return false;
+    }
+    if (strcmp(arguments, "led-blink") == 0) {
+      if (ledBlinkTask_ != nullptr) { output.line("led-blink already running"); return true; }
+      if (!supervisor_.canStart("led-blink", ESP.getFreeHeap())) { output.line("error: led-blink resource limit exceeded"); return false; }
+      pinMode(38, OUTPUT);
+      supervisor_.markStarting("led-blink");
+      const BaseType_t result = xTaskCreatePinnedToCore(ledBlinkThunk, "led-blink", 3072, this, 1, &ledBlinkTask_, 1);
+      if (result != pdPASS) { supervisor_.markFailed("led-blink"); output.line("error: led-blink task could not start"); return false; }
+      supervisor_.markRunning("led-blink");
+      output.line("led-blink started");
+      return true;
     }
     if (diagnosticsTask_ != nullptr) { output.line("diagnostics already running"); return true; }
     if (!supervisor_.canStart("diagnostics", ESP.getFreeHeap())) {
@@ -291,8 +304,18 @@ class Esp32Services final : public DeviceServices {
     return true;
   }
   bool appStop(const char* arguments, CommandOutput& output) override {
-    if (arguments == nullptr || strcmp(arguments, "diagnostics") != 0) {
-      output.line("error: usage app-stop diagnostics"); return false;
+    if (arguments == nullptr || (strcmp(arguments, "diagnostics") != 0 && strcmp(arguments, "led-blink") != 0)) {
+      output.line("error: usage app-stop <diagnostics|led-blink>"); return false;
+    }
+    if (strcmp(arguments, "led-blink") == 0) {
+      if (ledBlinkTask_ == nullptr) { output.line("led-blink already stopped"); return true; }
+      vTaskDelete(ledBlinkTask_);
+      ledBlinkTask_ = nullptr;
+      digitalWrite(38, LOW);
+      supervisor_.markStopped("led-blink");
+      logs_.append("led-blink app stopped");
+      output.line("led-blink stopped");
+      return true;
     }
     if (diagnosticsTask_ == nullptr) { output.line("diagnostics already stopped"); return true; }
     vTaskDelete(diagnosticsTask_);
@@ -304,6 +327,7 @@ class Esp32Services final : public DeviceServices {
   }
   void appStatus(CommandOutput& output) override {
     output.line(supervisor_.state("diagnostics") == esp32shell::AppLifecycle::Running ? "diagnostics=running" : "diagnostics=stopped");
+    output.line(supervisor_.state("led-blink") == esp32shell::AppLifecycle::Running ? "led-blink=running" : "led-blink=stopped");
   }
   void closeSession(CommandOutput& output) override {
     output.line("serial monitor remains active; press Ctrl-C to exit");
@@ -335,6 +359,13 @@ class Esp32Services final : public DeviceServices {
  private:
   static void diagnosticsThunk(void* context) {
     static_cast<Esp32Services*>(context)->diagnosticsLoop();
+  }
+  static void ledBlinkThunk(void* context) {
+    (void)context;
+    for (;;) {
+      digitalWrite(38, !digitalRead(38));
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
   }
   void diagnosticsLoop() {
     for (;;) {
@@ -378,6 +409,7 @@ class Esp32Services final : public DeviceServices {
   AppSupervisor supervisor_;
   OtaSlotManager ota_;
   TaskHandle_t diagnosticsTask_ = nullptr;
+  TaskHandle_t ledBlinkTask_ = nullptr;
 };
 
 SerialOutput serialOutput;
