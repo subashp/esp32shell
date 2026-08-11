@@ -25,13 +25,16 @@ Acceptance: host parser contract passes; serial transport is booted on COM4, wit
 - Add station-mode provisioning without committing credentials.
 - Report connection state, IP address, RSSI, and uptime.
 - [x] Add retry and offline behavior.
+- [x] Persist Wi-Fi credentials in NVS and reload them at boot.
+- [x] Add LittleFS-backed bounded file commands and configuration commands.
 
-Acceptance: host Wi-Fi contract passes; board LAN acceptance remains pending hardware access.
+Acceptance: host Wi-Fi/storage contracts and ESP32 compile pass; reboot persistence and LAN acceptance remain hardware checks.
 
 ## Phase 3 — SSH transport
 
 - [x] Add bounded SSH session limits and timeout policy.
 - [ ] Evaluate `jimmyw/ssh_cli_server` and wolfSSH ESP32 examples.
+- [x] Add a fail-closed wolfSSH integration boundary; plaintext TCP fallback is rejected.
 - Select the smallest maintainable SSH server path.
 - Forward SSH stdin/stdout to the shared command dispatcher.
 - Add session limits, disconnect handling, and timeouts.
@@ -44,7 +47,8 @@ Acceptance: session policy is host-tested; live SSH forwarding remains pending l
 - Add heap, PSRAM, uptime, reset-reason, and FreeRTOS task diagnostics.
 - Add allowlisted GPIO inspection/control.
 - [x] Add allowlisted GPIO and bounded log policies.
-- [ ] Add logs and bounded output implementation.
+- [x] Add logs and bounded output implementation.
+- [x] Wire PSRAM, reset-reason, task, GPIO, and log commands into the firmware.
 
 Acceptance: GPIO/log safety contracts are host-tested; live diagnostics remain pending transport integration.
 
@@ -53,6 +57,7 @@ Acceptance: GPIO/log safety contracts are host-tested; live diagnostics remain p
 - Add LittleFS listing, read, write, and remove commands.
 - Add NVS-backed configuration commands.
 - [x] Add constrained filesystem paths and secret-key output policy.
+- [x] Wire NVS configuration and LittleFS list/read/write/remove commands.
 - Never print secrets in configuration output.
 
 Acceptance: storage policies are host-tested; LittleFS/NVS persistence remains pending implementation.
@@ -64,6 +69,7 @@ Acceptance: storage policies are host-tested; LittleFS/NVS persistence remains p
 - Add command permissions and confirmation for destructive operations.
 - [x] Add password-strength and destructive-command confirmation policies.
 - Add safe reboot and recovery behavior.
+- [x] Store SSH password digests and host-key bytes in protected NVS keys.
 
 Acceptance: security policies are host-tested; live SSH authentication and persisted host keys remain pending.
 
@@ -73,6 +79,8 @@ Acceptance: security policies are host-tested; live SSH authentication and persi
 - Add firmware version and compatibility reporting.
 - Add build instructions, smoke tests, and GitHub Actions.
 - [x] Add verified OTA lifecycle and rollback state policy.
+- [x] Add inactive-slot OTA streaming and hash-plus-signature boot gating.
+- [x] Add CI, partition validation, required-artifact checks, and release documentation.
 - Publish source-only first; never commit credentials, private endpoints, local paths, build output, or device keys.
 
 Acceptance: OTA policy is host-tested; signed dual-partition installation remains pending device integration.
