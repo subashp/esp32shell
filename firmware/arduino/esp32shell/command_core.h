@@ -38,6 +38,10 @@ class DeviceServices {
   virtual bool gpioWrite(const char* arguments, CommandOutput& output) = 0;
   virtual void logs(CommandOutput& output) = 0;
   virtual void otaStatus(CommandOutput& output) = 0;
+  virtual void appList(CommandOutput& output) = 0;
+  virtual bool appRun(const char* arguments, CommandOutput& output) = 0;
+  virtual bool appStop(const char* arguments, CommandOutput& output) = 0;
+  virtual void appStatus(CommandOutput& output) = 0;
   virtual void closeSession(CommandOutput& output) = 0;
 };
 
@@ -115,6 +119,16 @@ class CommandCore {
     }
     if (equals(command, length, "logs")) { services.logs(output); return CommandStatus::Ok; }
     if (equals(command, length, "ota-status")) { services.otaStatus(output); return CommandStatus::Ok; }
+    if (equals(command, length, "app-list")) { services.appList(output); return CommandStatus::Ok; }
+    if (equals(command, length, "app-run")) { output.line("error: usage app-run <name>"); return CommandStatus::Invalid; }
+    if (startsWith(command, length, "app-run ")) {
+      return services.appRun(command + 8, output) ? CommandStatus::Ok : CommandStatus::Invalid;
+    }
+    if (equals(command, length, "app-stop")) { output.line("error: usage app-stop <name>"); return CommandStatus::Invalid; }
+    if (startsWith(command, length, "app-stop ")) {
+      return services.appStop(command + 9, output) ? CommandStatus::Ok : CommandStatus::Invalid;
+    }
+    if (equals(command, length, "app-status")) { services.appStatus(output); return CommandStatus::Ok; }
     output.line("error: unknown command; try 'help'");
     return CommandStatus::Unknown;
   }
@@ -153,6 +167,10 @@ class CommandCore {
     output.line("  gpio-write    Write an allowlisted GPIO pin");
     output.line("  logs          Show bounded device logs");
     output.line("  ota-status    Show OTA slot state");
+    output.line("  app-list      List built-in apps");
+    output.line("  app-run       Launch a built-in app");
+    output.line("  app-stop      Stop a built-in app");
+    output.line("  app-status    Show app lifecycle state");
     output.line("  exit         Close the current shell session");
     output.line("  quit         Close the current shell session");
   }

@@ -264,6 +264,35 @@ class Esp32Services final : public DeviceServices {
     for (size_t index = 0; index < logs_.count(); ++index) output.line(logs_.at(index));
   }
   void otaStatus(CommandOutput& output) override { output.line(ota_.state()); }
+  void appList(CommandOutput& output) override {
+    output.line(diagnosticsTask_ == nullptr ? "diagnostics stopped" : "diagnostics running");
+  }
+  bool appRun(const char* arguments, CommandOutput& output) override {
+    if (arguments == nullptr || strcmp(arguments, "diagnostics") != 0) {
+      output.line("error: unknown app; available app: diagnostics"); return false;
+    }
+    if (diagnosticsTask_ != nullptr) { output.line("diagnostics already running"); return true; }
+    const BaseType_t result = xTaskCreatePinnedToCore(diagnosticsThunk, "diagnostics", 4096, this, 1,
+                                                       &diagnosticsTask_, 1);
+    if (result != pdPASS) { output.line("error: diagnostics task could not start"); return false; }
+    logs_.append("diagnostics app started");
+    output.line("diagnostics started");
+    return true;
+  }
+  bool appStop(const char* arguments, CommandOutput& output) override {
+    if (arguments == nullptr || strcmp(arguments, "diagnostics") != 0) {
+      output.line("error: usage app-stop diagnostics"); return false;
+    }
+    if (diagnosticsTask_ == nullptr) { output.line("diagnostics already stopped"); return true; }
+    vTaskDelete(diagnosticsTask_);
+    diagnosticsTask_ = nullptr;
+    logs_.append("diagnostics app stopped");
+    output.line("diagnostics stopped");
+    return true;
+  }
+  void appStatus(CommandOutput& output) override {
+    output.line(diagnosticsTask_ == nullptr ? "diagnostics=stopped" : "diagnostics=running");
+  }
   void closeSession(CommandOutput& output) override {
     output.line("serial monitor remains active; press Ctrl-C to exit");
   }
@@ -292,6 +321,18 @@ class Esp32Services final : public DeviceServices {
   }
 
  private:
+  static void diagnosticsThunk(void* context) {
+    static_cast<Esp32Services*>(context)->diagnosticsLoop();
+  }
+  void diagnosticsLoop() {
+    for (;;) {
+      Serial.printf("diagnostics tick uptime=%lu free_heap=%lu",
+                    static_cast<unsigned long>(millis()),
+                    static_cast<unsigned long>(ESP.getFreeHeap()));
+      Serial.println();
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+  }
   static bool gpioAllowed(int pin) {
     static const int allowedPins[] = {1, 2, 4, 5, 6, 7, 15, 16, 17, 18, 38};
     for (int allowed : allowedPins) if (allowed == pin) return true;
@@ -323,6 +364,7 @@ class Esp32Services final : public DeviceServices {
   Preferences preferences_;
   BoundedLog logs_;
   OtaSlotManager ota_;
+  TaskHandle_t diagnosticsTask_ = nullptr;
 };
 
 SerialOutput serialOutput;

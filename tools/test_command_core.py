@@ -57,8 +57,14 @@ class CommandCoreContractTests(unittest.TestCase):
             "usage fs-remove <path> --confirm",
             "usage gpio-read <allowlisted-pin>",
             "usage gpio-write <allowlisted-pin> <0|1>",
+            "usage app-run <name>",
+            "usage app-stop <name>",
         ):
             self.assertIn(usage, self.core)
+
+    def test_builtin_diagnostics_app_commands_are_registered(self):
+        for command in ("app-list", "app-run ", "app-stop ", "app-status"):
+            self.assertIn(command, self.core)
 
 
 if __name__ == "__main__":
