@@ -16,61 +16,66 @@ Acceptance: the board boots, prints a banner, and answers `help` and `device-inf
 - Separate command parsing and dispatch from serial I/O.
 - Define command result and error conventions.
 - Add `help`, `version`, `device-info`, `uptime`, `heap`, and `reboot`.
-- Add host-side parser tests where practical.
+- [x] Add host-side parser tests where practical.
 
-Acceptance: all commands work over serial and malformed input returns a safe error.
+Acceptance: host parser contract passes; board serial acceptance remains pending COM-port access.
 
 ## Phase 2 — Wi-Fi service
 
 - Add station-mode provisioning without committing credentials.
 - Report connection state, IP address, RSSI, and uptime.
-- Add retry and offline behavior.
+- [x] Add retry and offline behavior.
 
-Acceptance: the board connects to a configured LAN and reports its address over serial.
+Acceptance: host Wi-Fi contract passes; board LAN acceptance remains pending hardware access.
 
 ## Phase 3 — SSH transport
 
-- Evaluate `jimmyw/ssh_cli_server` and wolfSSH ESP32 examples.
+- [x] Add bounded SSH session limits and timeout policy.
+- [ ] Evaluate `jimmyw/ssh_cli_server` and wolfSSH ESP32 examples.
 - Select the smallest maintainable SSH server path.
 - Forward SSH stdin/stdout to the shared command dispatcher.
 - Add session limits, disconnect handling, and timeouts.
 
-Acceptance: `ssh user@device-ip` opens `esp32shell>` and runs the same commands as serial.
+Acceptance: session policy is host-tested; live SSH forwarding remains pending library selection and hardware validation.
 
 ## Phase 4 — Device toolbox
 
 - Add Wi-Fi diagnostics.
 - Add heap, PSRAM, uptime, reset-reason, and FreeRTOS task diagnostics.
 - Add allowlisted GPIO inspection/control.
-- Add logs and bounded output.
+- [x] Add allowlisted GPIO and bounded log policies.
+- [ ] Add logs and bounded output implementation.
 
-Acceptance: diagnostics are useful over SSH and cannot access unapproved pins or unbounded resources.
+Acceptance: GPIO/log safety contracts are host-tested; live diagnostics remain pending transport integration.
 
 ## Phase 5 — Filesystem and configuration
 
 - Add LittleFS listing, read, write, and remove commands.
 - Add NVS-backed configuration commands.
+- [x] Add constrained filesystem paths and secret-key output policy.
 - Never print secrets in configuration output.
 
-Acceptance: configuration survives reboot and filesystem operations are constrained to the device filesystem.
+Acceptance: storage policies are host-tested; LittleFS/NVS persistence remains pending implementation.
 
 ## Phase 6 — Security and recovery
 
 - Persist SSH host keys.
 - Require a non-default password or public-key authentication.
 - Add command permissions and confirmation for destructive operations.
+- [x] Add password-strength and destructive-command confirmation policies.
 - Add safe reboot and recovery behavior.
 
-Acceptance: unauthenticated access is rejected and dangerous commands require authorization.
+Acceptance: security policies are host-tested; live SSH authentication and persisted host keys remain pending.
 
 ## Phase 7 — OTA and release quality
 
 - Add dual-partition OTA with rollback.
 - Add firmware version and compatibility reporting.
 - Add build instructions, smoke tests, and GitHub Actions.
+- [x] Add verified OTA lifecycle and rollback state policy.
 - Publish source-only first; never commit credentials, private endpoints, local paths, build output, or device keys.
 
-Acceptance: a signed or verified firmware update can be installed and rolled back safely.
+Acceptance: OTA policy is host-tested; signed dual-partition installation remains pending device integration.
 
 ## Execution rules
 
