@@ -5,7 +5,7 @@ param(
     [string]$CliPath = "arduino-cli",
     [string]$Esp32CoreVersion = "3.3.11",
     [string]$CliStateRoot = "",
-    [int]$BootstrapTimeoutSeconds = 180,
+    [int]$BootstrapRetries = 2,
     [string[]]$TestCommands = @("help", "version", "device-info", "uptime", "heap", "wifi-status", "exit", "quit"),
     [int]$TestTimeoutSeconds = 2,
     [switch]$Clean,
@@ -60,27 +60,22 @@ function Convert-ToCliPath {
 
 function Invoke-CliBootstrapCommand {
     param(
-        [string[]]$Arguments,
-        [int]$TimeoutSeconds
+        [string[]]$Arguments
     )
 
     $stdoutPath = Join-Path $cliState "bootstrap.stdout.log"
     $stderrPath = Join-Path $cliState "bootstrap.stderr.log"
-    $argumentText = ($Arguments | ForEach-Object {
-        if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
-    }) -join ' '
-    $process = Start-Process -FilePath $cli.Source -ArgumentList $argumentText -WorkingDirectory $repo `
-        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
-    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-        $process.Kill()
-        throw "Arduino CLI bootstrap command timed out after $TimeoutSeconds seconds. See $stdoutPath and $stderrPath."
-    }
+    # Invoke the executable directly. Redirected Start-Process instances on
+    # Windows PowerShell can finish successfully while exposing a blank
+    # Process.ExitCode; direct invocation reliably sets LASTEXITCODE.
+    & $cli.Source @Arguments 1> $stdoutPath 2> $stderrPath
+    $exitCode = $LASTEXITCODE
     $output = @()
     if (Test-Path -LiteralPath $stdoutPath) { $output += Get-Content -LiteralPath $stdoutPath }
     if (Test-Path -LiteralPath $stderrPath) { $output += Get-Content -LiteralPath $stderrPath }
     $output | ForEach-Object { Write-Host $_ }
-    if ($process.ExitCode -ne 0) {
-        throw "Arduino CLI bootstrap command failed with exit code $($process.ExitCode). See $stderrPath."
+    if ($exitCode -ne 0) {
+        throw "Arduino CLI bootstrap command failed with exit code $exitCode. See $stderrPath."
     }
     return $output
 }
@@ -102,12 +97,25 @@ Write-Host "Using Arduino CLI: $($cli.Source)"
 Write-Host "Using writable CLI state: $cliState"
 $cliGlobalArgs = @("--config-file", $cliConfig)
 Write-Host "Checking Arduino ESP32 core $Esp32CoreVersion..."
-$coreList = Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "list")) -TimeoutSeconds 30
+$coreList = Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "list"))
 $coreListText = $coreList -join "`n"
 if (-not ($coreListText -match "esp32:esp32")) {
     Write-Host "Installing Arduino ESP32 core $Esp32CoreVersion into the writable CLI state..."
-    [void](Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "update-index")) -TimeoutSeconds $BootstrapTimeoutSeconds)
-    [void](Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "install", "esp32:esp32@$Esp32CoreVersion")) -TimeoutSeconds $BootstrapTimeoutSeconds)
+    $bootstrapSucceeded = $false
+    for ($attempt = 1; $attempt -le [Math]::Max(1, $BootstrapRetries); $attempt++) {
+        try {
+            Write-Host "Arduino CLI bootstrap attempt $attempt/$([Math]::Max(1, $BootstrapRetries))..."
+            [void](Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "update-index")))
+            [void](Invoke-CliBootstrapCommand -Arguments ($cliGlobalArgs + @("core", "install", "esp32:esp32@$Esp32CoreVersion")))
+            $bootstrapSucceeded = $true
+            break
+        } catch {
+            if ($attempt -ge [Math]::Max(1, $BootstrapRetries)) { throw }
+            Write-Warning "Arduino CLI bootstrap attempt $attempt failed: $($_.Exception.Message)"
+            Write-Host "Retrying bootstrap with the existing download cache..."
+        }
+    }
+    if (-not $bootstrapSucceeded) { throw "Arduino ESP32 core bootstrap did not complete." }
 }
 
 & $cli.Source @cliGlobalArgs compile `

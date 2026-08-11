@@ -22,9 +22,9 @@ class UartWorkflowContractTests(unittest.TestCase):
         self.assertIn("GetTempPath", self.script)
         self.assertIn("ResetCliState", self.script)
         self.assertIn("Using writable CLI state", self.script)
-        self.assertIn("BootstrapTimeoutSeconds", self.script)
-        self.assertIn("WaitForExit", self.script)
-        self.assertIn("bootstrap command timed out", self.script)
+        self.assertIn("BootstrapRetries", self.script)
+        self.assertIn("LASTEXITCODE", self.script)
+        self.assertIn("bootstrap command failed with exit code", self.script)
         self.assertIn("--build-path $build", self.script)
         self.assertIn("--flash-size\\s+32MB", self.script)
 
