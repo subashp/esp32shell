@@ -38,6 +38,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("ac01707f552c611fbd135cc723b2682b3e7f80f2", dependencies)
         self.assertIn("8643d7be841184f766374e3b0ed68ced6391543c", dependencies)
 
+    def test_idf_target_builds_real_wolfssh_components(self):
+        cmake = (ROOT / "firmware/esp-idf/CMakeLists.txt").read_text(encoding="utf-8")
+        main = (ROOT / "firmware/esp-idf/main/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("components", cmake)
+        self.assertIn("wolfSSH_Init", main)
+        self.assertIn("wolfSSH_Cleanup", main)
+
 
 if __name__ == "__main__":
     unittest.main()
