@@ -33,13 +33,14 @@ Acceptance: host Wi-Fi/storage contracts and ESP32 compile pass; reboot persiste
 ## Phase 3 — SSH transport
 
 - [x] Add bounded SSH session limits and timeout policy.
-- [ ] Evaluate `jimmyw/ssh_cli_server` and wolfSSH ESP32 examples.
+- [x] Evaluate `jimmyw/ssh_cli_server` and wolfSSH ESP32 examples.
 - [x] Add a fail-closed wolfSSH integration boundary; plaintext TCP fallback is rejected.
-- Select the smallest maintainable SSH server path.
-- Forward SSH stdin/stdout to the shared command dispatcher.
-- Add session limits, disconnect handling, and timeouts.
+- [x] Select pinned wolfSSL/wolfSSH ESP-IDF components as the maintainable server path.
+- [x] Start an authenticated server after the Wi-Fi IP event.
+- [x] Forward SSH stdin/stdout to the shared command dispatcher.
+- [x] Add bounded line input, disconnect handling, and server-task limits.
 
-Acceptance: session policy is host-tested; live SSH forwarding remains pending library selection and hardware validation.
+Acceptance: wolfSSH ESP-IDF image builds and the serial firmware is hardware-tested. Live LAN SSH authentication remains pending host-key provisioning and a Wi-Fi acceptance run.
 
 ## Phase 4 — Device toolbox
 
@@ -60,7 +61,7 @@ Acceptance: GPIO/log safety contracts are host-tested; live diagnostics remain p
 - [x] Wire NVS configuration and LittleFS list/read/write/remove commands.
 - Never print secrets in configuration output.
 
-Acceptance: storage policies are host-tested; LittleFS/NVS persistence remains pending implementation.
+Acceptance: Arduino LittleFS/NVS persistence and COM4 file commands are implemented. The ESP-IDF SSH upload endpoint is path-restricted but requires the target filesystem VFS mount before live upload acceptance.
 
 ## Phase 6 — Security and recovery
 
@@ -71,7 +72,7 @@ Acceptance: storage policies are host-tested; LittleFS/NVS persistence remains p
 - Add safe reboot and recovery behavior.
 - [x] Store SSH password digests and host-key bytes in protected NVS keys.
 
-Acceptance: security policies are host-tested; live SSH authentication and persisted host keys remain pending.
+Acceptance: security policies are host-tested. ESP-IDF server startup fails closed without NVS username, digest, and ASN.1 host key; live SSH authentication remains pending provisioning and LAN testing.
 
 ## Phase 7 — OTA and release quality
 
@@ -84,6 +85,19 @@ Acceptance: security policies are host-tested; live SSH authentication and persi
 - Publish source-only first; never commit credentials, private endpoints, local paths, build output, or device keys.
 
 Acceptance: OTA policy is host-tested; signed dual-partition installation remains pending device integration.
+
+## Phase 8 — Applications and remote delivery
+
+- [x] Add a built-in diagnostics FreeRTOS app.
+- [x] Add a built-in GPIO38 LED-blink FreeRTOS app.
+- [x] Add bounded app registration, heap admission checks, and lifecycle supervision.
+- [x] Add a signed, bounded, data-driven app-bundle format contract.
+- [x] Add an authenticated, `/apps`-restricted file-upload command on the SSH shell path.
+- [ ] Mount LittleFS in the ESP-IDF SSH target and validate upload persistence.
+- [ ] Connect signed bundle verification to app installation and lifecycle launch.
+- [ ] Validate live SSH/SFTP-equivalent upload and signed bundle execution over Wi-Fi.
+
+Acceptance: built-in diagnostics and LED-blink lifecycle passed on COM4. Remote app delivery and signed bundle execution remain pending LittleFS mount, key provisioning, and live network acceptance.
 
 ## Execution rules
 
