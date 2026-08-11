@@ -21,6 +21,12 @@ class UartWorkflowContractTests(unittest.TestCase):
         self.assertIn("--port $Port", self.script)
         self.assertIn("--input-dir $build", self.script)
         self.assertIn("monitor --port $Port", self.script)
+        self.assertIn("System.IO.Ports.SerialPort", self.script)
+        self.assertIn("DiscardInBuffer", self.script)
+        self.assertIn("finally", self.script)
+        self.assertIn("UART tests passed", self.script)
+        self.assertIn("SkipTest", self.script)
+        self.assertIn("OpenMonitor", self.script)
         self.assertIn("SkipUpload", self.script)
         self.assertIn("SkipMonitor", self.script)
 

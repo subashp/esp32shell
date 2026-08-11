@@ -3,8 +3,12 @@ param(
     [string]$Port = "COM4",
     [int]$BaudRate = 115200,
     [string]$CliPath = "arduino-cli",
+    [string[]]$TestCommands = @("help", "version", "device-info", "uptime", "heap", "wifi-status", "exit", "quit"),
+    [int]$TestTimeoutSeconds = 2,
     [switch]$Clean,
     [switch]$SkipUpload,
+    [switch]$SkipTest,
+    [switch]$OpenMonitor,
     [switch]$SkipMonitor
 )
 
@@ -51,6 +55,69 @@ if (-not $partitionBinary -or -not $firmwareBinary) {
 
 Write-Host "Build verified: $($firmwareBinary.Name), $($partitionBinary.Name), flash size 32MB"
 
+function Invoke-UartTerminalTest {
+    param(
+        [string]$SerialPortName,
+        [int]$SerialBaudRate,
+        [string[]]$Commands,
+        [int]$TimeoutSeconds
+    )
+
+    $serial = New-Object System.IO.Ports.SerialPort(
+        $SerialPortName,
+        $SerialBaudRate,
+        [System.IO.Ports.Parity]::None,
+        8,
+        [System.IO.Ports.StopBits]::One
+    )
+    $serial.DtrEnable = $false
+    $serial.RtsEnable = $false
+    $serial.ReadTimeout = 100
+    $serial.WriteTimeout = 1000
+
+    try {
+        $serial.Open()
+        Start-Sleep -Milliseconds 500
+        $serial.DiscardInBuffer()
+        $serial.DiscardOutBuffer()
+
+        foreach ($command in $Commands) {
+            $serial.WriteLine($command)
+            $expected = switch ($command) {
+                "help" { "Commands:"; break }
+                "version" { "esp32shell"; break }
+                "device-info" { "chip="; break }
+                "uptime" { "ms"; break }
+                "heap" { "free_heap="; break }
+                "wifi-status" { "wifi="; break }
+                "exit" { "serial monitor remains active"; break }
+                "quit" { "serial monitor remains active"; break }
+                default { throw "No expected output is defined for UART test command '$command'." }
+            }
+
+            $output = New-Object System.Text.StringBuilder
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            while ([DateTime]::UtcNow -lt $deadline) {
+                if ($serial.BytesToRead -gt 0) {
+                    [void]$output.Append($serial.ReadExisting())
+                    if ($output.ToString().Contains($expected)) { break }
+                }
+                Start-Sleep -Milliseconds 50
+            }
+            $text = $output.ToString()
+            Write-Host ("UART test [{0}]: {1}" -f $command, ($text.Trim() -replace "\r?\n", " | "))
+            if (-not $text.Contains($expected)) {
+                throw "UART test failed for '$command'; expected output containing '$expected'."
+            }
+        }
+        Write-Host "UART tests passed; COM port will now be disconnected."
+    }
+    finally {
+        if ($serial.IsOpen) { $serial.Close() }
+        $serial.Dispose()
+    }
+}
+
 if (-not $SkipUpload) {
     & $cli.Source upload `
         --fqbn esp32:esp32:esp32s3 `
@@ -59,7 +126,15 @@ if (-not $SkipUpload) {
     if ($LASTEXITCODE -ne 0) { throw "Arduino CLI upload failed with exit code $LASTEXITCODE." }
 }
 
-if (-not $SkipMonitor) {
+if (-not $SkipTest) {
+    Invoke-UartTerminalTest `
+        -SerialPortName $Port `
+        -SerialBaudRate $BaudRate `
+        -Commands $TestCommands `
+        -TimeoutSeconds $TestTimeoutSeconds
+}
+
+if ($OpenMonitor -and -not $SkipMonitor) {
     Write-Host "Opening UART shell on $Port at $BaudRate baud. Press Ctrl-C to exit the monitor."
     & $cli.Source monitor --port $Port --config "baudrate=$BaudRate"
     if ($LASTEXITCODE -ne 0) { throw "Arduino CLI monitor exited with code $LASTEXITCODE." }

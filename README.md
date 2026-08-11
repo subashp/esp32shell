@@ -6,7 +6,7 @@ An experimental SSH-accessible command shell and device toolbox for the ESP32-S3
 
 The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. Boot/banner acceptance is verified, including the 32MB partition table and coredump partition. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
 
-The remaining work is tracked in [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md). Machine-local build output and credentials must remain untracked.
+The public roadmap is tracked in [docs/PLAN.md](docs/PLAN.md). A detailed local execution plan may be kept at `docs/SHELL_PLAN.md`; it is intentionally ignored because it can contain machine-specific workflow notes. Machine-local build output and credentials must remain untracked.
 
 ## Hardware target
 
@@ -122,7 +122,7 @@ The serial shell is intentionally transport-independent in spirit. SSH will late
 
 ### One-command UART workflow
 
-The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, and opens the monitor:
+The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, runs UART command tests using terminal output, closes the COM port, and returns:
 
 ```powershell
 .\tools\build_flash_monitor.ps1 -Clean
@@ -131,10 +131,11 @@ The reusable PowerShell workflow builds with the required 32MB/OPI options, veri
 Useful variants:
 
 ```powershell
-.\tools\build_flash_monitor.ps1 -SkipUpload -SkipMonitor  # build and verify only
+.\tools\build_flash_monitor.ps1 -OpenMonitor             # test, then attach interactively
+.\tools\build_flash_monitor.ps1 -SkipUpload -SkipTest     # build and verify only
 .\tools\build_flash_monitor.ps1 -Port COM4                # reuse the build directory
 ```
 
 ## Repository roadmap
 
-See [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md), [docs/PLAN.md](docs/PLAN.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [docs/PLAN.md](docs/PLAN.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). If present locally, also use `docs/SHELL_PLAN.md` for the detailed execution checklist.

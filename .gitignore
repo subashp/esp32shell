@@ -24,3 +24,6 @@ credentials*
 secrets/
 device-state/
 logs/
+
+# Local execution plan
+docs/SHELL_PLAN.md
