@@ -1,5 +1,6 @@
 # Arduino and ESP-IDF build output
 build/
+.build/
 .pio/
 *.elf
 *.map

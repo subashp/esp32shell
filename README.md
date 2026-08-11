@@ -4,7 +4,9 @@ An experimental SSH-accessible command shell and device toolbox for the ESP32-S3
 
 ## Current status
 
-Phase 0 repository scaffold is in place. The Arduino bring-up sketch provides a minimal serial command shell so the command model can be tested before adding Wi-Fi and SSH.
+The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
+
+The remaining work is tracked in [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md). Machine-local build output and credentials must remain untracked.
 
 ## Hardware target
 
@@ -13,7 +15,90 @@ Phase 0 repository scaffold is in place. The Arduino bring-up sketch provides a 
 - 16 MB PSRAM
 - Onboard RGB LED on GPIO38 for the user's board revision
 
-## First bring-up
+## Windows command-line setup
+
+The supported command-line tool is Arduino CLI. The instructions below install the Espressif ESP32 platform version used by this repository and build the current sketch without Arduino IDE.
+
+### Install Arduino CLI
+
+Install the official Windows release from the [Arduino CLI installation documentation](https://arduino.github.io/arduino-cli/latest/installation/), or use WinGet if the package is available:
+
+```powershell
+winget search Arduino CLI
+winget install --id ArduinoSA.CLI -e
+arduino-cli version
+```
+
+Initialize the CLI and install Arduino-ESP32 3.3.11:
+
+```powershell
+arduino-cli config init --overwrite
+arduino-cli config add board_manager.additional_urls `
+  https://espressif.github.io/arduino-esp32/package_esp32_index.json
+arduino-cli core update-index
+arduino-cli core install esp32:esp32@3.3.11
+arduino-cli board listall "ESP32S3 Dev Module"
+```
+
+The CLI configuration and downloaded cores are user-local. Do not commit them to this repository.
+
+### Build the firmware
+
+From the repository root:
+
+```powershell
+$sketch = (Resolve-Path 'firmware\arduino\esp32shell').Path
+New-Item -ItemType Directory -Force .build\arduino | Out-Null
+
+arduino-cli compile `
+  --fqbn esp32:esp32:esp32s3 `
+  --build-path .build\arduino `
+  --warnings all `
+  $sketch
+```
+
+Target configuration:
+
+- Board: `ESP32S3 Dev Module`
+- Flash: `32MB`
+- PSRAM: `OPI PSRAM`
+- Partition table: `firmware/arduino/esp32shell/partitions.csv`
+
+Use `arduino-cli board details --fqbn esp32:esp32:esp32s3` to inspect the exact board-option names exposed by the installed core before adding `--board-options` to an automated build script.
+
+### Flash COM4
+
+```powershell
+arduino-cli board list
+Get-CimInstance Win32_SerialPort |
+  Select-Object DeviceID,Description,PNPDeviceID
+
+arduino-cli upload `
+  --fqbn esp32:esp32:esp32s3 `
+  --port COM4 `
+  --input-dir .build\arduino
+```
+
+If the ESP32-S3 does not enumerate, hold `BOOT`, tap `RESET`, release `BOOT`, and repeat `arduino-cli board list`. A data-capable USB cable and the board's native USB connector are required.
+
+### Open the serial shell
+
+```powershell
+arduino-cli monitor --port COM4 --config baudrate=115200
+```
+
+Initial acceptance commands:
+
+```text
+help
+version
+device-info
+uptime
+heap
+wifi-status
+```
+
+## Arduino IDE alternative
 
 Open `firmware/arduino/esp32shell/esp32shell.ino` in Arduino IDE.
 
@@ -22,10 +107,10 @@ Select:
 - Board: `ESP32S3 Dev Module`
 - Flash Size: `32MB`
 - PSRAM: `OPI PSRAM`
-- Port: the detected COM port
+- Port: `COM4`
 
 The serial shell is intentionally transport-independent in spirit. SSH will later use the same command dispatcher.
 
 ## Repository roadmap
 
-See [docs/PLAN.md](docs/PLAN.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md), [docs/PLAN.md](docs/PLAN.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
