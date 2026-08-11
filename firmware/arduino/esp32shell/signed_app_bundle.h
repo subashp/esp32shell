@@ -16,7 +16,7 @@ struct SignedAppBundleHeader {
   uint16_t reserved;
   uint32_t payloadLength;
   uint8_t payloadSha256[32];
-  uint8_t signature[64];  // Ed25519 signature over header-without-signature + payload
+  uint8_t signature[64];  // Ed25519 signature over the SHA-256 payload digest
 };
 
 class AppBundleDigest {

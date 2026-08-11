@@ -66,6 +66,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn('format_if_mount_failed = false', source)
         self.assertIn('base_path = kBasePath', source)
 
+    def test_signed_bundle_runtime_requires_signature_and_builtin_descriptor(self):
+        source = (ROOT / "firmware/esp-idf/main/idf_app_runtime.cpp").read_text(encoding="utf-8")
+        self.assertIn('"app_signing_pub"', source)
+        self.assertIn("SignedAppBundle::verify", source)
+        self.assertIn('"builtin=led-blink"', source)
+        self.assertIn("signed app descriptor is unsupported", source)
+
 
 if __name__ == "__main__":
     unittest.main()

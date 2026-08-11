@@ -1,5 +1,6 @@
 # Arduino and ESP-IDF build output
 build/
+firmware/esp-idf/managed_components/
 .build/
 .pio/
 *.elf
