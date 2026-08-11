@@ -29,7 +29,9 @@ winget install --id ArduinoSA.CLI -e
 arduino-cli version
 ```
 
-Initialize the CLI and install Arduino-ESP32 3.3.11:
+The workflow script uses a per-user temporary CLI state directory under `%TEMP%\esp32shell-arduino-cli`, which avoids permission problems with a locked `AppData\Local\Arduino15` directory. It bootstraps the pinned core there when needed. Override it with `-CliStateRoot` if a persistent location is preferred.
+
+Initialize the CLI manually, if desired, and install Arduino-ESP32 3.3.11:
 
 ```powershell
 arduino-cli config init --overwrite
@@ -40,7 +42,7 @@ arduino-cli core install esp32:esp32@3.3.11
 arduino-cli board listall "ESP32S3 Dev Module"
 ```
 
-The CLI configuration and downloaded cores are user-local. Do not commit them to this repository.
+The CLI configuration and downloaded cores are machine-local. The workflow keeps them outside the repository by default; do not commit them to this repository.
 
 ### Build the firmware
 
@@ -125,14 +127,17 @@ The serial shell is intentionally transport-independent in spirit. SSH will late
 The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, runs UART command tests using terminal output, closes the COM port, and returns:
 
 ```powershell
-.\tools\build_flash_monitor.ps1 -Clean
+.\tools\build_flash_monitor.cmd -Clean
 ```
+
+The `.cmd` launcher applies a process-scoped PowerShell execution-policy bypass, which is useful on Windows machines that block direct `.ps1` execution. You can also invoke the PowerShell script directly when policy permits.
 
 Useful variants:
 
 ```powershell
 .\tools\build_flash_monitor.ps1 -OpenMonitor             # test, then attach interactively
 .\tools\build_flash_monitor.ps1 -SkipUpload -SkipTest     # build and verify only
+.\tools\build_flash_monitor.ps1 -Clean -ResetCliState     # rebuild CLI state if bootstrap state is damaged
 .\tools\build_flash_monitor.ps1 -Port COM4                # reuse the build directory
 ```
 
