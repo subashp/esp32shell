@@ -7,6 +7,7 @@
 #include "ssh_transport.h"
 #include "security_policy.h"
 #include "ota_service.h"
+#include "app_supervisor.h"
 #include "wifi_service.h"
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -27,6 +28,8 @@ using esp32shell::FilesystemPolicy;
 using esp32shell::BoundedLog;
 using esp32shell::SecurityPolicy;
 using esp32shell::OtaSlotManager;
+using esp32shell::AppSupervisor;
+using esp32shell::AppResourceLimits;
 
 String readLine;
 bool lineEndingSeen = false;
@@ -55,6 +58,9 @@ class SerialOutput final : public CommandOutput {
 
 class Esp32Services final : public DeviceServices {
  public:
+  Esp32Services() {
+    supervisor_.registerApp("diagnostics", {4096, 20000, 0});
+  }
   void deviceInfo(CommandOutput& output) override {
     Serial.printf("chip=%s cores=%d cpu_mhz=%lu", ESP.getChipModel(), ESP.getChipCores(),
                   static_cast<unsigned long>(ESP.getCpuFreqMHz()));
@@ -272,9 +278,14 @@ class Esp32Services final : public DeviceServices {
       output.line("error: unknown app; available app: diagnostics"); return false;
     }
     if (diagnosticsTask_ != nullptr) { output.line("diagnostics already running"); return true; }
+    if (!supervisor_.canStart("diagnostics", ESP.getFreeHeap())) {
+      output.line("error: diagnostics resource limit exceeded"); return false;
+    }
+    supervisor_.markStarting("diagnostics");
     const BaseType_t result = xTaskCreatePinnedToCore(diagnosticsThunk, "diagnostics", 4096, this, 1,
                                                        &diagnosticsTask_, 1);
-    if (result != pdPASS) { output.line("error: diagnostics task could not start"); return false; }
+    if (result != pdPASS) { supervisor_.markFailed("diagnostics"); output.line("error: diagnostics task could not start"); return false; }
+    supervisor_.markRunning("diagnostics");
     logs_.append("diagnostics app started");
     output.line("diagnostics started");
     return true;
@@ -286,12 +297,13 @@ class Esp32Services final : public DeviceServices {
     if (diagnosticsTask_ == nullptr) { output.line("diagnostics already stopped"); return true; }
     vTaskDelete(diagnosticsTask_);
     diagnosticsTask_ = nullptr;
+    supervisor_.markStopped("diagnostics");
     logs_.append("diagnostics app stopped");
     output.line("diagnostics stopped");
     return true;
   }
   void appStatus(CommandOutput& output) override {
-    output.line(diagnosticsTask_ == nullptr ? "diagnostics=stopped" : "diagnostics=running");
+    output.line(supervisor_.state("diagnostics") == esp32shell::AppLifecycle::Running ? "diagnostics=running" : "diagnostics=stopped");
   }
   void closeSession(CommandOutput& output) override {
     output.line("serial monitor remains active; press Ctrl-C to exit");
@@ -363,6 +375,7 @@ class Esp32Services final : public DeviceServices {
   }
   Preferences preferences_;
   BoundedLog logs_;
+  AppSupervisor supervisor_;
   OtaSlotManager ota_;
   TaskHandle_t diagnosticsTask_ = nullptr;
 };
