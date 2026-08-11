@@ -2,8 +2,12 @@
 // Board: ESP32S3 Dev Module, 32MB Flash, OPI PSRAM.
 
 #include "command_core.h"
+#include "device_toolbox.h"
 #include "storage_policy.h"
 #include "wifi_service.h"
+#include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -16,6 +20,7 @@ using esp32shell::WifiService;
 using esp32shell::WifiState;
 using esp32shell::ConfigOutputPolicy;
 using esp32shell::FilesystemPolicy;
+using esp32shell::BoundedLog;
 
 String readLine;
 bool lineEndingSeen = false;
@@ -187,6 +192,54 @@ class Esp32Services final : public DeviceServices {
     output.line("file removed");
     return true;
   }
+  void psram(CommandOutput& output) override {
+    Serial.printf("psram=%s size=%lu free=%lu", ESP.getPsramSize() > 0 ? "yes" : "no",
+                  static_cast<unsigned long>(ESP.getPsramSize()), static_cast<unsigned long>(ESP.getFreePsram()));
+    output.line("");
+  }
+  void resetReason(CommandOutput& output) override {
+    Serial.printf("reset-reason=%d", static_cast<int>(esp_reset_reason()));
+    output.line("");
+  }
+  void tasks(CommandOutput& output) override {
+    TaskStatus_t statuses[12] = {};
+    uint32_t totalRuntime = 0;
+    const UBaseType_t count = uxTaskGetSystemState(statuses, 12, &totalRuntime);
+    Serial.printf("tasks=%lu", static_cast<unsigned long>(count));
+    output.line("");
+    for (UBaseType_t index = 0; index < count && index < 12; ++index) {
+      Serial.printf("%s stack=%u", statuses[index].pcTaskName,
+                    static_cast<unsigned int>(statuses[index].usStackHighWaterMark));
+      output.line("");
+    }
+  }
+  void gpioModes(CommandOutput& output) override {
+    output.line("gpio allowlist: 1,2,4,5,6,7,15,16,17,18,38");
+  }
+  void gpioRead(const char* arguments, CommandOutput& output) override {
+    int pin = -1;
+    if (arguments == nullptr || sscanf(arguments, "%d", &pin) != 1 || !gpioAllowed(pin)) {
+      output.line("error: GPIO pin is not allowlisted"); return;
+    }
+    pinMode(pin, INPUT);
+    Serial.printf("gpio=%d value=%d", pin, digitalRead(pin));
+    output.line("");
+  }
+  bool gpioWrite(const char* arguments, CommandOutput& output) override {
+    int pin = -1;
+    int value = -1;
+    if (arguments == nullptr || sscanf(arguments, "%d %d", &pin, &value) != 2 || !gpioAllowed(pin) || (value != 0 && value != 1)) {
+      output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false;
+    }
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, value);
+    output.line("gpio updated");
+    return true;
+  }
+  void logs(CommandOutput& output) override {
+    if (logs_.count() == 0) { output.line("logs=empty"); return; }
+    for (size_t index = 0; index < logs_.count(); ++index) output.line(logs_.at(index));
+  }
   void closeSession(CommandOutput& output) override {
     output.line("serial monitor remains active; press Ctrl-C to exit");
   }
@@ -199,14 +252,21 @@ class Esp32Services final : public DeviceServices {
     String password = preferences_.getString("wifi_password", "");
     if (ssid.length() > 0 && password.length() > 0) wifiService.configure(ssid.c_str(), password.c_str(), millis());
   }
+  void recordLog(const char* message) { logs_.append(message); }
 
  private:
+  static bool gpioAllowed(int pin) {
+    static const int allowedPins[] = {1, 2, 4, 5, 6, 7, 15, 16, 17, 18, 38};
+    for (int allowed : allowedPins) if (allowed == pin) return true;
+    return false;
+  }
   static bool isAllowedConfigKey(const char* key) {
     return strcmp(key, "wifi_ssid") == 0 || strcmp(key, "wifi_password") == 0 ||
            strcmp(key, "ssh_username") == 0 || strcmp(key, "ssh_password") == 0 ||
            strcmp(key, "ssh_host_key") == 0;
   }
   Preferences preferences_;
+  BoundedLog logs_;
 };
 
 SerialOutput serialOutput;
@@ -219,6 +279,7 @@ void setup() {
   Serial.println("esp32shell serial bring-up");
   services.beginStorage();
   services.loadWifi();
+  services.recordLog("boot complete");
   Serial.println("Type 'help' for commands.");
   Serial.print("esp32shell> ");
 }

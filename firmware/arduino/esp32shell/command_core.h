@@ -30,6 +30,13 @@ class DeviceServices {
   virtual void fsRead(const char* arguments, CommandOutput& output) = 0;
   virtual bool fsWrite(const char* arguments, CommandOutput& output) = 0;
   virtual bool fsRemove(const char* arguments, CommandOutput& output) = 0;
+  virtual void psram(CommandOutput& output) = 0;
+  virtual void resetReason(CommandOutput& output) = 0;
+  virtual void tasks(CommandOutput& output) = 0;
+  virtual void gpioModes(CommandOutput& output) = 0;
+  virtual void gpioRead(const char* arguments, CommandOutput& output) = 0;
+  virtual bool gpioWrite(const char* arguments, CommandOutput& output) = 0;
+  virtual void logs(CommandOutput& output) = 0;
   virtual void closeSession(CommandOutput& output) = 0;
 };
 
@@ -84,6 +91,15 @@ class CommandCore {
     if (startsWith(command, length, "fs-remove ")) {
       return services.fsRemove(command + 10, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
+    if (equals(command, length, "psram")) { services.psram(output); return CommandStatus::Ok; }
+    if (equals(command, length, "reset-reason")) { services.resetReason(output); return CommandStatus::Ok; }
+    if (equals(command, length, "tasks")) { services.tasks(output); return CommandStatus::Ok; }
+    if (equals(command, length, "gpio-modes")) { services.gpioModes(output); return CommandStatus::Ok; }
+    if (startsWith(command, length, "gpio-read ")) { services.gpioRead(command + 10, output); return CommandStatus::Ok; }
+    if (startsWith(command, length, "gpio-write ")) {
+      return services.gpioWrite(command + 11, output) ? CommandStatus::Ok : CommandStatus::Invalid;
+    }
+    if (equals(command, length, "logs")) { services.logs(output); return CommandStatus::Ok; }
     output.line("error: unknown command; try 'help'");
     return CommandStatus::Unknown;
   }
@@ -114,6 +130,13 @@ class CommandCore {
     output.line("  fs-read       Read a LittleFS file");
     output.line("  fs-write      Write a LittleFS file");
     output.line("  fs-remove     Remove a file with --confirm");
+    output.line("  psram         Show PSRAM usage");
+    output.line("  reset-reason  Show the last reset reason");
+    output.line("  tasks         Show bounded task diagnostics");
+    output.line("  gpio-modes    Show allowlisted GPIO pins");
+    output.line("  gpio-read     Read an allowlisted GPIO pin");
+    output.line("  gpio-write    Write an allowlisted GPIO pin");
+    output.line("  logs          Show bounded device logs");
     output.line("  exit         Close the current shell session");
     output.line("  quit         Close the current shell session");
   }
