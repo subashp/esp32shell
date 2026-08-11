@@ -37,6 +37,7 @@ class DeviceServices {
   virtual void gpioRead(const char* arguments, CommandOutput& output) = 0;
   virtual bool gpioWrite(const char* arguments, CommandOutput& output) = 0;
   virtual void logs(CommandOutput& output) = 0;
+  virtual void otaStatus(CommandOutput& output) = 0;
   virtual void closeSession(CommandOutput& output) = 0;
 };
 
@@ -100,6 +101,7 @@ class CommandCore {
       return services.gpioWrite(command + 11, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
     if (equals(command, length, "logs")) { services.logs(output); return CommandStatus::Ok; }
+    if (equals(command, length, "ota-status")) { services.otaStatus(output); return CommandStatus::Ok; }
     output.line("error: unknown command; try 'help'");
     return CommandStatus::Unknown;
   }
@@ -137,6 +139,7 @@ class CommandCore {
     output.line("  gpio-read     Read an allowlisted GPIO pin");
     output.line("  gpio-write    Write an allowlisted GPIO pin");
     output.line("  logs          Show bounded device logs");
+    output.line("  ota-status    Show OTA slot state");
     output.line("  exit         Close the current shell session");
     output.line("  quit         Close the current shell session");
   }

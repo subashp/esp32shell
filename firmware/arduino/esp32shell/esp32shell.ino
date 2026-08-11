@@ -6,6 +6,7 @@
 #include "storage_policy.h"
 #include "ssh_transport.h"
 #include "security_policy.h"
+#include "ota_service.h"
 #include "wifi_service.h"
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -25,6 +26,7 @@ using esp32shell::ConfigOutputPolicy;
 using esp32shell::FilesystemPolicy;
 using esp32shell::BoundedLog;
 using esp32shell::SecurityPolicy;
+using esp32shell::OtaSlotManager;
 
 String readLine;
 bool lineEndingSeen = false;
@@ -261,6 +263,7 @@ class Esp32Services final : public DeviceServices {
     if (logs_.count() == 0) { output.line("logs=empty"); return; }
     for (size_t index = 0; index < logs_.count(); ++index) output.line(logs_.at(index));
   }
+  void otaStatus(CommandOutput& output) override { output.line(ota_.state()); }
   void closeSession(CommandOutput& output) override {
     output.line("serial monitor remains active; press Ctrl-C to exit");
   }
@@ -316,6 +319,7 @@ class Esp32Services final : public DeviceServices {
   }
   Preferences preferences_;
   BoundedLog logs_;
+  OtaSlotManager ota_;
 };
 
 SerialOutput serialOutput;
