@@ -20,6 +20,8 @@ class DeviceServices {
   virtual void uptime(CommandOutput& output) = 0;
   virtual void heap(CommandOutput& output) = 0;
   virtual void reboot(CommandOutput& output) = 0;
+  virtual void wifiStatus(CommandOutput& output) = 0;
+  virtual bool wifiConfig(const char* arguments, CommandOutput& output) = 0;
 };
 
 class CommandCore {
@@ -47,6 +49,12 @@ class CommandCore {
     if (equals(command, length, "uptime")) { services.uptime(output); return CommandStatus::Ok; }
     if (equals(command, length, "heap")) { services.heap(output); return CommandStatus::Ok; }
     if (equals(command, length, "reboot")) { services.reboot(output); return CommandStatus::Ok; }
+    if (equals(command, length, "wifi-status")) { services.wifiStatus(output); return CommandStatus::Ok; }
+    const char* wifiConfigPrefix = "wifi-config ";
+    const size_t wifiConfigPrefixLength = strlen(wifiConfigPrefix);
+    if (length > wifiConfigPrefixLength && strncmp(command, wifiConfigPrefix, wifiConfigPrefixLength) == 0) {
+      return services.wifiConfig(command + wifiConfigPrefixLength, output) ? CommandStatus::Ok : CommandStatus::Invalid;
+    }
     output.line("error: unknown command; try 'help'");
     return CommandStatus::Unknown;
   }
@@ -63,6 +71,8 @@ class CommandCore {
     output.line("  uptime       Show uptime in milliseconds");
     output.line("  heap         Show free heap");
     output.line("  reboot       Restart the device");
+    output.line("  wifi-status  Show Wi-Fi state");
+    output.line("  wifi-config  Configure Wi-Fi in RAM");
   }
 };
 
