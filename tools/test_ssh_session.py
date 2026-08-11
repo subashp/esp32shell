@@ -40,7 +40,7 @@ class SshSessionContractTests(unittest.TestCase):
 
     def test_idf_target_builds_real_wolfssh_components(self):
         cmake = (ROOT / "firmware/esp-idf/CMakeLists.txt").read_text(encoding="utf-8")
-        main = (ROOT / "firmware/esp-idf/main/main.cpp").read_text(encoding="utf-8")
+        main = (ROOT / "firmware/esp-idf/main/ssh_server.cpp").read_text(encoding="utf-8")
         self.assertIn("components", cmake)
         self.assertIn("wolfSSH_Init", main)
         self.assertIn("wolfSSH_Cleanup", main)

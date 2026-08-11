@@ -1,13 +1,23 @@
 #include <stdio.h>
 
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_netif.h"
+#include "nvs_flash.h"
+#include "ssh_server.h"
+
 extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssh/ssh.h>
 }
 
 extern "C" void app_main() {
-    const int result = wolfSSH_Init();
-    printf("esp32shell wolfSSH component probe: %s\n",
-           result == WS_SUCCESS ? "initialized" : "initialization failed");
-    wolfSSH_Cleanup();
+    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                                [](void*, esp_event_base_t,
+                                                   int32_t, void*) {
+                                                  esp32shell_ssh_start_after_wifi();
+                                                }, nullptr));
+    printf("esp32shell wolfSSH server ready; waiting for Wi-Fi IP\n");
 }
