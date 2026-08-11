@@ -5,6 +5,7 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 #include "ssh_server.h"
+#include "wifi_station.h"
 
 extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
@@ -20,4 +21,7 @@ extern "C" void app_main() {
                                                   esp32shell_ssh_start_after_wifi();
                                                 }, nullptr));
     printf("esp32shell wolfSSH server ready; waiting for Wi-Fi IP\n");
+    if (!esp32shell_wifi_start()) {
+        printf("esp32shell Wi-Fi not configured; SSH remains disabled\n");
+    }
 }

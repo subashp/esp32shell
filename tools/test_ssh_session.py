@@ -51,6 +51,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn('std::strstr(arguments, "..")', services)
         self.assertIn('"upload=complete"', services)
 
+    def test_idf_wifi_reads_only_provisioned_nvs_credentials(self):
+        source = (ROOT / "firmware/esp-idf/main/wifi_station.cpp").read_text(encoding="utf-8")
+        self.assertIn('"wifi_ssid"', source)
+        self.assertIn('"wifi_password"', source)
+        self.assertIn("esp_wifi_connect", source)
+        self.assertIn("Wi-Fi disabled", source)
+
 
 if __name__ == "__main__":
     unittest.main()
