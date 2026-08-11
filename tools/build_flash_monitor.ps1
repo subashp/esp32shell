@@ -136,8 +136,10 @@ if ($flashArgs -notmatch "--flash-size\s+32MB") {
 }
 $partitionBinary = Get-ChildItem -LiteralPath $build -Filter "*.partitions.bin" -File | Select-Object -First 1
 $firmwareBinary = Get-ChildItem -LiteralPath $build -Filter "*.ino.bin" -File | Select-Object -First 1
-if (-not $partitionBinary -or -not $firmwareBinary) {
-    throw "Build verification failed: firmware or partition binary is missing."
+$elfBinary = Get-ChildItem -LiteralPath $build -Filter "*.ino.elf" -File | Select-Object -First 1
+$mapFile = Get-ChildItem -LiteralPath $build -Filter "*.ino.map" -File | Select-Object -First 1
+if (-not $partitionBinary -or -not $firmwareBinary -or -not $elfBinary -or -not $mapFile) {
+    throw "Build verification failed: required firmware, partition, ELF, or map artifact is missing."
 }
 
 Write-Host "Build verified: $($firmwareBinary.Name), $($partitionBinary.Name), flash size 32MB"
