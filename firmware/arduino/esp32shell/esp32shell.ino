@@ -5,6 +5,7 @@
 #include "device_toolbox.h"
 #include "storage_policy.h"
 #include "ssh_transport.h"
+#include "security_policy.h"
 #include "wifi_service.h"
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
@@ -12,6 +13,7 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include <mbedtls/sha256.h>
 
 using esp32shell::CommandCore;
 using esp32shell::CommandOutput;
@@ -22,6 +24,7 @@ using esp32shell::WifiState;
 using esp32shell::ConfigOutputPolicy;
 using esp32shell::FilesystemPolicy;
 using esp32shell::BoundedLog;
+using esp32shell::SecurityPolicy;
 
 String readLine;
 bool lineEndingSeen = false;
@@ -109,7 +112,7 @@ class Esp32Services final : public DeviceServices {
     output.line(preferences_.isKey("wifi_ssid") ? "wifi_ssid=set" : "wifi_ssid=unset");
     output.line(preferences_.isKey("wifi_password") ? "wifi_password=<redacted>" : "wifi_password=unset");
     output.line(preferences_.isKey("ssh_username") ? "ssh_username=set" : "ssh_username=unset");
-    output.line(preferences_.isKey("ssh_password") ? "ssh_password=<redacted>" : "ssh_password=unset");
+    output.line(preferences_.isKey("ssh_pw_hash") ? "ssh_password=<protected>" : "ssh_password=unset");
     output.line(preferences_.isKey("ssh_host_key") ? "ssh_host_key=<protected>" : "ssh_host_key=unset");
   }
   void configGet(const char* arguments, CommandOutput& output) override {
@@ -132,7 +135,24 @@ class Esp32Services final : public DeviceServices {
     if (keyLength >= sizeof(key)) { output.line("error: key is too long"); return false; }
     memcpy(key, arguments, keyLength);
     if (!isAllowedConfigKey(key)) { output.line("error: key is not allowed"); return false; }
-    preferences_.putString(key, separator + 1);
+    if (strcmp(key, "ssh_password") == 0) {
+      if (!SecurityPolicy::passwordIsAcceptable(separator + 1)) {
+        output.line("error: password needs 12+ chars with upper, lower, and digit"); return false;
+      }
+      uint8_t digest[SecurityPolicy::kPasswordDigestSize] = {};
+      mbedtls_sha256(reinterpret_cast<const unsigned char*>(separator + 1), strlen(separator + 1), digest, 0);
+      preferences_.putBytes("ssh_pw_hash", digest, sizeof(digest));
+      preferences_.remove("ssh_password");
+    } else if (strcmp(key, "ssh_host_key") == 0) {
+      uint8_t keyBytes[32] = {};
+      size_t keyLength = 0;
+      if (!decodeHex(separator + 1, keyBytes, sizeof(keyBytes), keyLength) || keyLength < 16) {
+        output.line("error: host key must be 16-32 bytes of hexadecimal data"); return false;
+      }
+      preferences_.putBytes("ssh_host_key", keyBytes, keyLength);
+    } else {
+      preferences_.putString(key, separator + 1);
+    }
     output.line(ConfigOutputPolicy::isSecretKey(key) ? "configuration updated (redacted)" : "configuration updated");
     return true;
   }
@@ -254,6 +274,16 @@ class Esp32Services final : public DeviceServices {
     if (ssid.length() > 0 && password.length() > 0) wifiService.configure(ssid.c_str(), password.c_str(), millis());
   }
   void recordLog(const char* message) { logs_.append(message); }
+  bool verifySshPassword(const char* password) {
+    if (password == nullptr || !preferences_.isKey("ssh_pw_hash")) return false;
+    uint8_t expected[SecurityPolicy::kPasswordDigestSize] = {};
+    if (preferences_.getBytes("ssh_pw_hash", expected, sizeof(expected)) != sizeof(expected)) return false;
+    uint8_t actual[SecurityPolicy::kPasswordDigestSize] = {};
+    mbedtls_sha256(reinterpret_cast<const unsigned char*>(password), strlen(password), actual, 0);
+    uint8_t difference = 0;
+    for (size_t index = 0; index < sizeof(actual); ++index) difference |= actual[index] ^ expected[index];
+    return difference == 0;
+  }
 
  private:
   static bool gpioAllowed(int pin) {
@@ -265,6 +295,24 @@ class Esp32Services final : public DeviceServices {
     return strcmp(key, "wifi_ssid") == 0 || strcmp(key, "wifi_password") == 0 ||
            strcmp(key, "ssh_username") == 0 || strcmp(key, "ssh_password") == 0 ||
            strcmp(key, "ssh_host_key") == 0;
+  }
+  static bool decodeHex(const char* text, uint8_t* output, size_t capacity, size_t& length) {
+    length = 0;
+    const size_t textLength = strlen(text);
+    if (textLength == 0 || (textLength % 2) != 0 || textLength / 2 > capacity) return false;
+    for (size_t index = 0; index < textLength; index += 2) {
+      const auto nibble = [](char value) -> int {
+        if (value >= '0' && value <= '9') return value - '0';
+        if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+        if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+        return -1;
+      };
+      const int high = nibble(text[index]);
+      const int low = nibble(text[index + 1]);
+      if (high < 0 || low < 0) return false;
+      output[length++] = static_cast<uint8_t>((high << 4) | low);
+    }
+    return true;
   }
   Preferences preferences_;
   BoundedLog logs_;
