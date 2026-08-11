@@ -5,7 +5,7 @@
 
 namespace esp32shell {
 
-enum class CommandStatus { Ok, Empty, Unknown, Invalid };
+enum class CommandStatus { Ok, Empty, Unknown, Invalid, SessionClosed };
 
 class CommandOutput {
  public:
@@ -22,6 +22,7 @@ class DeviceServices {
   virtual void reboot(CommandOutput& output) = 0;
   virtual void wifiStatus(CommandOutput& output) = 0;
   virtual bool wifiConfig(const char* arguments, CommandOutput& output) = 0;
+  virtual void closeSession(CommandOutput& output) = 0;
 };
 
 class CommandCore {
@@ -50,6 +51,10 @@ class CommandCore {
     if (equals(command, length, "heap")) { services.heap(output); return CommandStatus::Ok; }
     if (equals(command, length, "reboot")) { services.reboot(output); return CommandStatus::Ok; }
     if (equals(command, length, "wifi-status")) { services.wifiStatus(output); return CommandStatus::Ok; }
+    if (equals(command, length, "exit") || equals(command, length, "quit")) {
+      services.closeSession(output);
+      return CommandStatus::SessionClosed;
+    }
     const char* wifiConfigPrefix = "wifi-config ";
     const size_t wifiConfigPrefixLength = strlen(wifiConfigPrefix);
     if (length > wifiConfigPrefixLength && strncmp(command, wifiConfigPrefix, wifiConfigPrefixLength) == 0) {
@@ -73,6 +78,8 @@ class CommandCore {
     output.line("  reboot       Restart the device");
     output.line("  wifi-status  Show Wi-Fi state");
     output.line("  wifi-config  Configure Wi-Fi in RAM");
+    output.line("  exit         Close the current shell session");
+    output.line("  quit         Close the current shell session");
   }
 };
 

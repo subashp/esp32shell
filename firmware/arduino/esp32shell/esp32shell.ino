@@ -86,6 +86,9 @@ class Esp32Services final : public DeviceServices {
     output.line("wifi configuration accepted in RAM");
     return true;
   }
+  void closeSession(CommandOutput& output) override {
+    output.line("serial monitor remains active; press Ctrl-C to exit");
+  }
 };
 
 SerialOutput serialOutput;

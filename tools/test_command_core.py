@@ -20,7 +20,7 @@ class CommandCoreContractTests(unittest.TestCase):
             self.assertIn(f'"{command}"', self.core)
 
     def test_result_conventions_cover_empty_unknown_and_invalid_input(self):
-        for status in ("Ok", "Empty", "Unknown", "Invalid"):
+        for status in ("Ok", "Empty", "Unknown", "Invalid", "SessionClosed"):
             self.assertIn(status, self.core)
         self.assertIn("error: unknown command; try 'help'", self.core)
         self.assertIn("error: command is too long", self.core)
@@ -37,6 +37,13 @@ class CommandCoreContractTests(unittest.TestCase):
     def test_serial_input_is_bounded(self):
         self.assertIn("CommandCore::kMaxCommandLength + 1", self.sketch)
         self.assertIn("kMaxCommandLength = 96", self.core)
+
+    def test_exit_and_quit_are_session_commands(self):
+        for command in ("exit", "quit"):
+            self.assertIn(f'"{command}"', self.core)
+        self.assertIn("closeSession", self.core)
+        self.assertIn("SessionClosed", self.core)
+        self.assertIn("press Ctrl-C to exit", self.sketch)
 
 
 if __name__ == "__main__":

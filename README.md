@@ -120,6 +120,21 @@ Select:
 
 The serial shell is intentionally transport-independent in spirit. SSH will later use the same command dispatcher.
 
+### One-command UART workflow
+
+The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, and opens the monitor:
+
+```powershell
+.\tools\build_flash_monitor.ps1 -Clean
+```
+
+Useful variants:
+
+```powershell
+.\tools\build_flash_monitor.ps1 -SkipUpload -SkipMonitor  # build and verify only
+.\tools\build_flash_monitor.ps1 -Port COM4                # reuse the build directory
+```
+
 ## Repository roadmap
 
 See [docs/SHELL_PLAN.md](docs/SHELL_PLAN.md), [docs/PLAN.md](docs/PLAN.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -21,6 +21,14 @@ arduino-cli upload --fqbn esp32:esp32:esp32s3 --port COM4 --input-dir .build\ard
 arduino-cli monitor --port COM4 --config baudrate=115200
 ```
 
+The same workflow is available as a PowerShell script:
+
+```powershell
+.\tools\build_flash_monitor.ps1 -Clean
+```
+
+It compiles with `FlashSize=32M,PSRAM=opi`, verifies `flash_args` and the firmware/partition binaries, uploads to `COM4`, and opens `arduino-cli monitor`. Use `-SkipUpload -SkipMonitor` for build verification only.
+
 Do not place Wi-Fi credentials, SSH passwords, private keys, host keys, or local logs in the repository.
 
 ## 2. Build and flash contract
