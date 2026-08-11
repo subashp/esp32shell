@@ -4,6 +4,7 @@
 #include "command_core.h"
 #include "device_toolbox.h"
 #include "storage_policy.h"
+#include "ssh_transport.h"
 #include "wifi_service.h"
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
