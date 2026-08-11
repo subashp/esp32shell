@@ -9,6 +9,8 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
+#include "idf_command_services.h"
+
 extern "C" {
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/settings.h>
@@ -91,6 +93,51 @@ void close_session(WOLFSSH* ssh, int fd) {
   if (fd >= 0) close(fd);
 }
 
+class SshOutput final : public esp32shell::CommandOutput {
+ public:
+  explicit SshOutput(WOLFSSH* ssh) : ssh_(ssh) {}
+  void line(const char* text) override {
+    if (text == nullptr) return;
+    char buffer[esp32shell::CommandCore::kMaxCommandLength + 3] = {};
+    std::snprintf(buffer, sizeof(buffer), "%s\r\n", text);
+    wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer),
+                        static_cast<word32>(std::strlen(buffer)));
+  }
+ private:
+  WOLFSSH* ssh_;
+};
+
+void serve_shell(WOLFSSH* ssh) {
+  esp32shell::CommandCore core;
+  esp32shell_idf::CommandServices services;
+  SshOutput output(ssh);
+  output.line("esp32shell ssh shell");
+  output.line("Type 'help' for commands.");
+  char line[esp32shell::CommandCore::kMaxCommandLength + 1] = {};
+  size_t used = 0;
+  uint8_t input[64] = {};
+  while (true) {
+    const int received = wolfSSH_stream_read(ssh, input, sizeof(input));
+    if (received <= 0) break;
+    for (int i = 0; i < received; ++i) {
+      const char ch = static_cast<char>(input[i]);
+      if (ch == '\r' || ch == '\n') {
+        line[used] = '\0';
+        if (core.dispatch(line, output, services) == esp32shell::CommandStatus::SessionClosed) return;
+        used = 0;
+        output.line("esp32shell>");
+      } else if (ch == '\b' || ch == 0x7f) {
+        if (used > 0) --used;
+      } else if (used < esp32shell::CommandCore::kMaxCommandLength) {
+        line[used++] = ch;
+      } else {
+        output.line("error: command is too long");
+        used = 0;
+      }
+    }
+  }
+}
+
 void ssh_server_task(void*) {
   g_task = xTaskGetCurrentTaskHandle();
   if (!load_auth_config()) {
@@ -164,7 +211,8 @@ void ssh_server_task(void*) {
       close_session(ssh, client);
       continue;
     }
-    ESP_LOGI(kTag, "SSH client authenticated; shell forwarding is next stage");
+    ESP_LOGI(kTag, "SSH client authenticated");
+    serve_shell(ssh);
     close_session(ssh, client);
   }
   close(listener);
