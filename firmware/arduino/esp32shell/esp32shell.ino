@@ -153,10 +153,13 @@ class Esp32Services final : public DeviceServices {
       preferences_.putBytes("ssh_pw_hash", digest, sizeof(digest));
       preferences_.remove("ssh_password");
     } else if (strcmp(key, "ssh_host_key") == 0) {
-      uint8_t keyBytes[32] = {};
+      // NVS blob values are bounded below 2 KiB. A 2048-bit RSA DER private
+      // key fits this limit and its hex representation fits the 4096-byte line.
+      constexpr size_t kMaxHostKeyBytes = 1984;
+      uint8_t keyBytes[kMaxHostKeyBytes] = {};
       size_t keyLength = 0;
-      if (!decodeHex(separator + 1, keyBytes, sizeof(keyBytes), keyLength) || keyLength < 16) {
-        output.line("error: host key must be 16-32 bytes of hexadecimal data"); return false;
+      if (!decodeHex(separator + 1, keyBytes, sizeof(keyBytes), keyLength) || keyLength < 128) {
+        output.line("error: host key must be a bounded ASN.1 DER blob in hexadecimal data"); return false;
       }
       preferences_.putBytes("ssh_host_key", keyBytes, keyLength);
     } else {

@@ -26,6 +26,8 @@ class SecurityPolicyContractTests(unittest.TestCase):
         policy = SECURITY.read_text(encoding="utf-8")
         self.assertIn("kPasswordDigestSize = 32", policy)
         self.assertIn("isProtectedKey", policy)
+        self.assertIn("kMaxHostKeyBytes = 1984", sketch)
+        self.assertIn("ASN.1 DER blob", sketch)
 
 
 if __name__ == "__main__":
