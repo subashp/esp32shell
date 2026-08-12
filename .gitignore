@@ -2,7 +2,6 @@
 build/
 firmware/esp-idf/managed_components/
 .build/
-.build\
 .pio/
 *.elf
 *.map

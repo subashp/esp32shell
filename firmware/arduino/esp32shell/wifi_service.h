@@ -73,6 +73,9 @@ class WifiService {
     if (now < nextAttemptAt_) return;
     const size_t slot = nextProfile();
     if (slot >= kMaxProfiles) { state_ = WifiState::Offline; return; }
+    // Arduino-ESP32 rejects WiFi.begin() while the previous station attempt is
+    // still active. End the bounded attempt before switching profiles.
+    if (state_ == WifiState::Connecting) driver_.disconnect();
     driver_.begin(profiles_[slot].ssid, profiles_[slot].password);
     activeSlot_ = slot;
     state_ = WifiState::Connecting;
