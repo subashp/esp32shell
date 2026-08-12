@@ -10,8 +10,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if ($SshPassword.Length -lt 12 -or $SshPassword -notmatch '[A-Z]' -or
-    $SshPassword -notmatch '[a-z]' -or $SshPassword -notmatch '\d') {
+if ($SshPassword.Length -lt 12 -or $SshPassword -cnotmatch '[A-Z]' -or
+    $SshPassword -cnotmatch '[a-z]' -or $SshPassword -cnotmatch '\d') {
     throw "SSH password must be at least 12 characters and contain upper, lower, and digit characters."
 }
 if ($SshPassword -eq 'ESP32S3-WROOM-2') {
@@ -24,14 +24,37 @@ $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("esp32shell-ssh-" + [guid]::Ne
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 $pemPath = Join-Path $tempRoot "host-key.pem"
 $derPath = Join-Path $tempRoot "host-key.der"
+$opensslStdout = Join-Path $tempRoot "openssl.stdout"
+$opensslStderr = Join-Path $tempRoot "openssl.stderr"
+
+function Invoke-OpenSsl {
+    param([string[]]$Arguments)
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $openssl.Source
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.Arguments = (($Arguments | ForEach-Object { '"' + $_.Replace('"', '\\"') + '"' }) -join ' ')
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $info
+    [void]$process.Start()
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    Set-Content -LiteralPath $opensslStdout -Value $stdout -Encoding utf8
+    Set-Content -LiteralPath $opensslStderr -Value $stderr -Encoding utf8
+    if ($process.ExitCode -ne 0) {
+        $details = if (Test-Path -LiteralPath $opensslStderr) { Get-Content -LiteralPath $opensslStderr -Raw } else { "" }
+        throw "OpenSSL failed with exit code $($process.ExitCode): $details"
+    }
+}
 
 try {
     # OpenSSL 3 prints normal status text such as 'writing RSA key' on stderr.
-    # Merge and discard that informational stream; preserve the exit-code check.
-    & $openssl.Source genrsa -traditional -out $pemPath 2048 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "OpenSSL RSA key generation failed." }
-    & $openssl.Source rsa -in $pemPath -outform DER -out $derPath 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "OpenSSL DER conversion failed." }
+    # Start-Process captures it without PowerShell treating it as an exception.
+    Invoke-OpenSsl @("genrsa", "-traditional", "-out", $pemPath, "2048")
+    Invoke-OpenSsl @("rsa", "-in", $pemPath, "-outform", "DER", "-out", $derPath)
     $hostKeyHex = ([BitConverter]::ToString([IO.File]::ReadAllBytes($derPath))).Replace('-', '')
 
     $serial = New-Object System.IO.Ports.SerialPort($Port, $BaudRate,

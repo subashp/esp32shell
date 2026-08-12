@@ -90,11 +90,12 @@ class SshSessionContractTests(unittest.TestCase):
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
         self.assertIn("genrsa", script)
-        self.assertIn("-outform DER", script)
+        self.assertIn('"-outform", "DER"', script)
         self.assertIn("config-set ssh_host_key", script)
         self.assertIn("Remove-Item -LiteralPath $tempRoot", script)
         self.assertIn("writing RSA key", script)
         self.assertIn("separate strong password", script)
+        self.assertIn("Start-Process", script)
 
 
 if __name__ == "__main__":
