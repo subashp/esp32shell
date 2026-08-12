@@ -78,6 +78,8 @@ class SshSessionContractTests(unittest.TestCase):
         source = (ROOT / "firmware/esp-idf/main/ssh_server.cpp").read_text(encoding="utf-8")
         self.assertIn("WOLFSSH_SFTP", cmake)
         self.assertIn("wolfSSH_SFTP_read", source)
+        self.assertIn("wolfSSH_worker", source)
+        self.assertIn("WS_CHANNEL_CLOSED", source)
         self.assertIn('"/littlefs"', source)
         self.assertIn("WS_SFTP_COMPLETE", source)
         filesystem = (ROOT / "firmware/esp-idf/components/wolfssh/myFilesystem.h").read_text(encoding="utf-8")

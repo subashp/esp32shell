@@ -59,6 +59,9 @@ bool load_auth_config() {
   const bool hostKeyOk = load_blob(nvs, "ssh_host_key", g_auth.hostKey,
                                    sizeof(g_auth.hostKey), &g_auth.hostKeyLength);
   nvs_close(nvs);
+  ESP_LOGI(kTag, "SSH credentials loaded: username_length=%u host_key_bytes=%u",
+           static_cast<unsigned>(std::strlen(g_auth.username)),
+           static_cast<unsigned>(g_auth.hostKeyLength));
   return usernameOk && digestOk && hostKeyOk;
 }
 
@@ -70,6 +73,9 @@ int user_auth(byte authType, WS_UserAuthData* data, void* context) {
   const auto* auth = static_cast<const AuthConfig*>(context);
   if (data->usernameSz != std::strlen(auth->username) ||
       std::memcmp(data->username, auth->username, data->usernameSz) != 0) {
+    ESP_LOGW(kTag, "SSH username rejected: received_length=%u expected_length=%u",
+             static_cast<unsigned>(data->usernameSz),
+             static_cast<unsigned>(std::strlen(auth->username)));
     return WOLFSSH_USERAUTH_INVALID_USER;
   }
 
@@ -81,9 +87,11 @@ int user_auth(byte authType, WS_UserAuthData* data, void* context) {
       wc_Sha256Final(&sha, digest) != 0) {
     return WOLFSSH_USERAUTH_FAILURE;
   }
-  return std::memcmp(digest, auth->passwordDigest, sizeof(digest)) == 0
-             ? WOLFSSH_USERAUTH_SUCCESS
-             : WOLFSSH_USERAUTH_INVALID_PASSWORD;
+  const bool matches = std::memcmp(digest, auth->passwordDigest, sizeof(digest)) == 0;
+  ESP_LOGI(kTag, "SSH password authentication %s (length=%u)",
+           matches ? "accepted" : "rejected",
+           static_cast<unsigned>(data->sf.password.passwordSz));
+  return matches ? WOLFSSH_USERAUTH_SUCCESS : WOLFSSH_USERAUTH_INVALID_PASSWORD;
 }
 
 void close_session(WOLFSSH* ssh, int fd) {
@@ -142,10 +150,26 @@ void serve_shell(WOLFSSH* ssh) {
 int serve_sftp(WOLFSSH* ssh) {
   if (wolfSSH_SFTP_SetDefaultPath(ssh, "/littlefs") != WS_SUCCESS) return WS_FATAL_ERROR;
   ESP_LOGI(kTag, "SFTP subsystem accepted with root /littlefs");
+  int result = WS_CHAN_RXD;
+  const int socketFd = wolfSSH_get_fd(ssh);
   for (;;) {
-    const int result = wolfSSH_SFTP_read(ssh);
+    if (result == WS_CHAN_RXD || result == WS_WANT_WRITE ||
+        wolfSSH_SFTP_PendingSend(ssh)) {
+      result = wolfSSH_SFTP_read(ssh);
+    } else {
+      fd_set readSet;
+      FD_ZERO(&readSet);
+      FD_SET(socketFd, &readSet);
+      timeval timeout{};
+      timeout.tv_sec = 1;
+      const int selected = select(socketFd + 1, &readSet, nullptr, nullptr, &timeout);
+      if (selected < 0) return WS_SOCKET_ERROR_E;
+      if (selected == 0) continue;
+      result = wolfSSH_worker(ssh, nullptr);
+    }
     const int error = wolfSSH_get_error(ssh);
-    if (error == WS_EOF || result == WS_EOF) return WS_SUCCESS;
+    if (error == WS_EOF || error == WS_CHANNEL_CLOSED || result == WS_EOF ||
+        result == WS_CHANNEL_CLOSED) return WS_SUCCESS;
     if (result == WS_SUCCESS || result == WS_CHAN_RXD || result == WS_WANT_READ ||
         result == WS_WANT_WRITE || error == WS_WANT_READ || error == WS_WANT_WRITE ||
         error == WS_CHAN_RXD || error == WS_WINDOW_FULL) {
