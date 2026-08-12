@@ -12,6 +12,7 @@ class WifiDriver {
   virtual ~WifiDriver() = default;
   virtual void begin(const char* ssid, const char* password) = 0;
   virtual bool connected() const = 0;
+  virtual bool connecting() const = 0;
   virtual void disconnect() = 0;
   virtual int rssi() const = 0;
   virtual const char* ipAddress() const = 0;
@@ -70,6 +71,10 @@ class WifiService {
     }
     if (driver_.connected()) {
       state_ = WifiState::Connected;
+      return;
+    }
+    if (driver_.connecting()) {
+      state_ = WifiState::Connecting;
       return;
     }
     const bool previousAttempt = state_ == WifiState::Connecting;

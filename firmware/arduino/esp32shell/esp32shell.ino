@@ -39,6 +39,7 @@ class ArduinoWifiDriver final : public WifiDriver {
  public:
   void begin(const char* ssid, const char* password) override { WiFi.begin(ssid, password); }
   bool connected() const override { return WiFi.status() == WL_CONNECTED; }
+  bool connecting() const override { return WiFi.status() == WL_IDLE_STATUS; }
   void disconnect() override {
     // Stop the asynchronous station negotiation before the next WiFi.begin().
     // Without this, Arduino-ESP32 can reject the next profile as "sta is

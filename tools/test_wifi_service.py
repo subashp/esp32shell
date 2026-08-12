@@ -29,6 +29,7 @@ class WifiServiceContractTests(unittest.TestCase):
         self.assertIn("if (!configured_)", self.wifi)
         self.assertIn("if (now < nextAttemptAt_)", self.wifi)
         self.assertIn("driver_.begin(profiles_[slot].ssid, profiles_[slot].password)", self.wifi)
+        self.assertIn("if (driver_.connecting())", self.wifi)
         self.assertIn('"0.0.0.0"', self.wifi)
 
     def test_core_phase_two_commands_are_reserved(self):
@@ -49,6 +50,7 @@ class WifiServiceContractTests(unittest.TestCase):
         self.assertIn("WiFi.disconnect(true, false)", sketch)
         self.assertIn("WiFi.mode(WIFI_OFF)", sketch)
         self.assertIn("WiFi.mode(WIFI_STA)", sketch)
+        self.assertIn("WiFi.status() == WL_IDLE_STATUS", sketch)
         self.assertIn("Serial.write(static_cast<uint8_t>(c))", sketch)
         sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
         self.assertIn("wifi_profile_%u", sketch)
