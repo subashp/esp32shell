@@ -15,6 +15,7 @@ extern "C" {
 #include <wolfssl/wolfcrypt/sha256.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssh/ssh.h>
+#include <wolfssh/wolfsftp.h>
 }
 
 namespace {
@@ -138,6 +139,23 @@ void serve_shell(WOLFSSH* ssh) {
   }
 }
 
+int serve_sftp(WOLFSSH* ssh) {
+  if (wolfSSH_SFTP_SetDefaultPath(ssh, "/littlefs") != WS_SUCCESS) return WS_FATAL_ERROR;
+  ESP_LOGI(kTag, "SFTP subsystem accepted with root /littlefs");
+  for (;;) {
+    const int result = wolfSSH_SFTP_read(ssh);
+    const int error = wolfSSH_get_error(ssh);
+    if (error == WS_EOF || result == WS_EOF) return WS_SUCCESS;
+    if (result == WS_SUCCESS || result == WS_CHAN_RXD || result == WS_WANT_READ ||
+        result == WS_WANT_WRITE || error == WS_WANT_READ || error == WS_WANT_WRITE ||
+        error == WS_CHAN_RXD || error == WS_WINDOW_FULL) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+      continue;
+    }
+    return result;
+  }
+}
+
 void ssh_server_task(void*) {
   g_task = xTaskGetCurrentTaskHandle();
   if (!load_auth_config()) {
@@ -206,6 +224,11 @@ void ssh_server_task(void*) {
     wolfSSH_SetUserAuthCtx(ssh, &g_auth);
     wolfSSH_set_fd(ssh, client);
     const int accepted = wolfSSH_accept(ssh);
+    if (accepted == WS_SFTP_COMPLETE) {
+      serve_sftp(ssh);
+      close_session(ssh, client);
+      continue;
+    }
     if (accepted != WS_SUCCESS) {
       ESP_LOGW(kTag, "SSH handshake rejected (%d)", accepted);
       close_session(ssh, client);

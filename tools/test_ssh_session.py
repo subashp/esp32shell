@@ -73,6 +73,20 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn('"builtin=led-blink"', source)
         self.assertIn("signed app descriptor is unsupported", source)
 
+    def test_sftp_subsystem_is_enabled_and_rooted_at_littlefs(self):
+        cmake = (ROOT / "firmware/esp-idf/components/wolfssh/CMakeLists.txt").read_text(encoding="utf-8")
+        source = (ROOT / "firmware/esp-idf/main/ssh_server.cpp").read_text(encoding="utf-8")
+        self.assertIn("WOLFSSH_SFTP", cmake)
+        self.assertIn("wolfSSH_SFTP_read", source)
+        self.assertIn('"/littlefs"', source)
+        self.assertIn("WS_SFTP_COMPLETE", source)
+        filesystem = (ROOT / "firmware/esp-idf/components/wolfssh/myFilesystem.h").read_text(encoding="utf-8")
+        self.assertIn("wolfssh_preinclude.h", cmake)
+        self.assertNotIn("WOLFSSH_USER_FILESYSTEM", cmake)
+        self.assertIn("USE_OSE_API", (ROOT / "firmware/esp-idf/components/wolfssh/wolfssh_preinclude.h").read_text(encoding="utf-8"))
+        self.assertIn("WOPENDIR", filesystem)
+        self.assertIn("WPWRITE", filesystem)
+
 
 if __name__ == "__main__":
     unittest.main()
