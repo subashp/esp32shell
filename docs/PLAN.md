@@ -76,7 +76,7 @@ Acceptance: security policies are host-tested. ESP-IDF server startup fails clos
 
 ## Phase 7 — OTA and release quality
 
-- Add dual-partition OTA with rollback.
+- [x] Add dual-partition OTA with rollback.
 - Add firmware version and compatibility reporting.
 - Add build instructions, smoke tests, and GitHub Actions.
 - [x] Add verified OTA lifecycle and rollback state policy.
@@ -84,7 +84,7 @@ Acceptance: security policies are host-tested. ESP-IDF server startup fails clos
 - [x] Add CI, partition validation, required-artifact checks, and release documentation.
 - Publish source-only first; never commit credentials, private endpoints, local paths, build output, or device keys.
 
-Acceptance: OTA policy is host-tested; signed dual-partition installation remains pending device integration.
+Acceptance: Arduino OTA policy and ESP-IDF boot-slot validation are implemented and build-tested. Signed OTA installation and rollback still require a real signed image, flashing, reboot, and rollback exercise on hardware.
 
 ## Phase 8 — Applications and remote delivery
 
@@ -95,6 +95,7 @@ Acceptance: OTA policy is host-tested; signed dual-partition installation remain
 - [x] Add an authenticated, `/apps`-restricted file-upload command on the SSH shell path.
 - [x] Mount LittleFS in the ESP-IDF SSH target and add the wolfSSH SFTP filesystem adapter.
 - [x] Connect signed bundle verification to app installation and lifecycle launch.
+- [x] Add UART provisioning for Wi-Fi, SSH password digest, and ASN.1 host-key storage.
 - [ ] Validate live SSH/SFTP-equivalent upload and signed bundle execution over Wi-Fi.
 
 Acceptance: built-in diagnostics and LED-blink lifecycle passed on COM4. Signed bundle verification and lifecycle execution are implemented; remote delivery and live execution remain pending valid host-key/Wi-Fi provisioning and network acceptance.

@@ -7,6 +7,7 @@
 #include "ssh_server.h"
 #include "wifi_station.h"
 #include "littlefs_mount.h"
+#include "idf_ota.h"
 
 extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
@@ -15,6 +16,7 @@ extern "C" {
 
 extern "C" void app_main() {
     ESP_ERROR_CHECK(nvs_flash_init());
+    esp32shell_idf::ota_boot_validate();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                                 [](void*, esp_event_base_t,

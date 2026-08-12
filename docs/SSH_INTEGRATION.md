@@ -15,6 +15,21 @@ If any value is absent or malformed, the server fails closed. Build the target
 with `tools/build_espidf_ssh.cmd`; the generated image is separate from the
 Arduino COM4 firmware.
 
+Provision the values over the Arduino UART before flashing the ESP-IDF image:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
+  -Port COM4 `
+  -WifiSsid 'SRP-WiFi' `
+  -WifiPassword '<wifi-password>' `
+  -SshUsername 'esp32shell' `
+  -SshPassword '<separate-strong-ssh-password>'
+```
+
+The helper generates a temporary 2048-bit RSA ASN.1/DER host key, writes its
+hex form through the bounded UART command path, and deletes the temporary key
+file. Do not use the Wi-Fi password as the SSH password.
+
 The authenticated shell also exposes the path-restricted command
 `fs-write /apps/<name> <content>`. The ESP-IDF target additionally enables the
 wolfSSH SFTP subsystem and roots its default path at `/littlefs`, making a

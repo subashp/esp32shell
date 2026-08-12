@@ -47,7 +47,9 @@ class DeviceServices {
 
 class CommandCore {
  public:
-  static constexpr size_t kMaxCommandLength = 96;
+  // Authentication provisioning may carry a DER host key encoded as hex.
+  // Keep the line bounded, but large enough for a 2048-bit RSA key.
+  static constexpr size_t kMaxCommandLength = 2048;
 
   CommandStatus dispatch(const char* input, CommandOutput& output,
                          DeviceServices& services) const {

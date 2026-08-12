@@ -6,7 +6,7 @@ namespace esp32shell {
 
 struct SshSessionLimits {
   static constexpr size_t kMaxSessions = 2;
-  static constexpr size_t kMaxLineLength = 96;
+  static constexpr size_t kMaxLineLength = 2048;
   static constexpr unsigned long kIdleTimeoutMs = 300000;
 };
 

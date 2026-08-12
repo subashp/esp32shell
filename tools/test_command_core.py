@@ -36,7 +36,7 @@ class CommandCoreContractTests(unittest.TestCase):
 
     def test_serial_input_is_bounded(self):
         self.assertIn("CommandCore::kMaxCommandLength + 1", self.sketch)
-        self.assertIn("kMaxCommandLength = 96", self.core)
+        self.assertIn("kMaxCommandLength = 2048", self.core)
 
     def test_exit_and_quit_are_session_commands(self):
         for command in ("exit", "quit"):

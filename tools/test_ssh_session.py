@@ -13,7 +13,7 @@ class SshSessionContractTests(unittest.TestCase):
     def test_limits_and_timeout_are_bounded(self):
         source = SSH.read_text(encoding="utf-8")
         self.assertIn("kMaxSessions = 2", source)
-        self.assertIn("kMaxLineLength = 96", source)
+        self.assertIn("kMaxLineLength = 2048", source)
         self.assertIn("kIdleTimeoutMs = 300000", source)
         self.assertIn("expire(unsigned long now)", source)
 
@@ -86,6 +86,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("USE_OSE_API", (ROOT / "firmware/esp-idf/components/wolfssh/wolfssh_preinclude.h").read_text(encoding="utf-8"))
         self.assertIn("WOPENDIR", filesystem)
         self.assertIn("WPWRITE", filesystem)
+
+    def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
+        script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
+        self.assertIn("genrsa", script)
+        self.assertIn("-outform DER", script)
+        self.assertIn("config-set ssh_host_key", script)
+        self.assertIn("Remove-Item -LiteralPath $tempRoot", script)
 
 
 if __name__ == "__main__":

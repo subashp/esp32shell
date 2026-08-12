@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "idf_app_runtime.h"
+#include "idf_ota.h"
 
 #include "../../../arduino/esp32shell/command_core.h"
 
@@ -73,7 +74,7 @@ class CommandServices final : public esp32shell::DeviceServices {
   void gpioRead(const char*, esp32shell::CommandOutput& output) override { unavailable(output); }
   bool gpioWrite(const char*, esp32shell::CommandOutput& output) override { unavailable(output); return false; }
   void logs(esp32shell::CommandOutput& output) override { output.line("logs=bounded"); }
-  void otaStatus(esp32shell::CommandOutput& output) override { output.line("ota=managed-by-arduino-target"); }
+  void otaStatus(esp32shell::CommandOutput& output) override { ota_status(output); }
   void appList(esp32shell::CommandOutput& output) override { apps_.list(output); }
   bool appRun(const char* arguments, esp32shell::CommandOutput& output) override { return apps_.run(arguments, output); }
   bool appStop(const char* arguments, esp32shell::CommandOutput& output) override { return apps_.stop(arguments, output); }

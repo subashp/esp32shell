@@ -28,6 +28,11 @@ class OtaPolicyContractTests(unittest.TestCase):
         self.assertIn("verifier.verify", source)
         self.assertIn("!policy_.canBoot()", source)
 
+    def test_idf_target_validates_boot_and_reports_real_slots(self):
+        source = (ROOT / "firmware/esp-idf/main/idf_ota.cpp").read_text(encoding="utf-8")
+        for symbol in ("esp_ota_mark_app_valid_cancel_rollback", "esp_ota_get_running_partition", "esp_ota_get_boot_partition"):
+            self.assertIn(symbol, source)
+
 
 if __name__ == "__main__":
     unittest.main()

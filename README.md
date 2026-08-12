@@ -122,6 +122,22 @@ Select:
 
 The serial shell is intentionally transport-independent in spirit. SSH will later use the same command dispatcher.
 
+### Provisioning live SSH
+
+Before flashing the ESP-IDF SSH image, provision Wi-Fi and authentication into
+the shared NVS namespace through the Arduino firmware on COM4:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
+  -Port COM4 -WifiSsid 'SRP-WiFi' -WifiPassword '<wifi-password>' `
+  -SshUsername 'esp32shell' -SshPassword '<separate-strong-ssh-password>'
+```
+
+The script creates a temporary 2048-bit RSA DER host key, stores it in NVS,
+and removes the temporary file. Credentials and key material are never stored
+in the repository. Flash the ESP-IDF image without erasing NVS, then monitor
+COM4 for the assigned IP and connect with an SSH/SFTP client on port `22222`.
+
 ### One-command UART workflow
 
 The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, runs UART command tests using terminal output, closes the COM port, and returns:
