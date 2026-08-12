@@ -41,7 +41,11 @@ class WifiServiceContractTests(unittest.TestCase):
         self.assertIn("kMaxProfiles = 2", self.wifi)
         self.assertIn("nextProfile_ = (slot + 1) % kMaxProfiles", self.wifi)
         self.assertIn("activeSlot_ = slot", self.wifi)
-        self.assertIn("if (state_ == WifiState::Connecting) driver_.disconnect();", self.wifi)
+        self.assertIn("const bool previousAttempt = state_ == WifiState::Connecting;", self.wifi)
+        self.assertIn("if (previousAttempt) driver_.disconnect();", self.wifi)
+        sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
+        self.assertIn("WiFi.disconnect(true, false)", sketch)
+        self.assertIn("Serial.write(static_cast<uint8_t>(c))", sketch)
         sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
         self.assertIn("wifi_profile_%u", sketch)
 

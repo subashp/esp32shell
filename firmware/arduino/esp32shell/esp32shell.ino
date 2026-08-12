@@ -39,7 +39,14 @@ class ArduinoWifiDriver final : public WifiDriver {
  public:
   void begin(const char* ssid, const char* password) override { WiFi.begin(ssid, password); }
   bool connected() const override { return WiFi.status() == WL_CONNECTED; }
-  void disconnect() override { WiFi.disconnect(); }
+  void disconnect() override {
+    // Stop the asynchronous station negotiation before the next WiFi.begin().
+    // Without this, Arduino-ESP32 can reject the next profile as "sta is
+    // connecting, cannot set config".
+    WiFi.disconnect(true, false);
+    delay(25);
+    WiFi.mode(WIFI_STA);
+  }
   int rssi() const override { return WiFi.RSSI(); }
   const char* ipAddress() const override {
     static char address[16];
@@ -489,6 +496,7 @@ void loop() {
     if (c == '\n' || c == '\r') {
       // Serial monitors commonly send CRLF. Treat the pair as one line ending.
       if (!lineEndingSeen) {
+        Serial.println();
         commandCore.dispatch(readLine.c_str(), serialOutput, services);
         readLine = "";
         Serial.print("esp32shell> ");
@@ -496,6 +504,7 @@ void loop() {
       lineEndingSeen = true;
     } else if (readLine.length() < CommandCore::kMaxCommandLength + 1) {
       readLine += c;
+      Serial.write(static_cast<uint8_t>(c));
       lineEndingSeen = false;
     }
   }
