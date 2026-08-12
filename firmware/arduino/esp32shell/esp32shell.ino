@@ -37,14 +37,17 @@ CommandCore commandCore;
 
 class ArduinoWifiDriver final : public WifiDriver {
  public:
-  void begin(const char* ssid, const char* password) override { WiFi.begin(ssid, password); }
+  void begin(const char* ssid, const char* password) override {
+    WiFi.setAutoReconnect(false);
+    WiFi.begin(ssid, password);
+  }
   bool connected() const override { return WiFi.status() == WL_CONNECTED; }
   bool connecting() const override { return WiFi.status() == WL_IDLE_STATUS; }
   void disconnect() override {
     // Stop the asynchronous station negotiation before the next WiFi.begin().
     // Without this, Arduino-ESP32 can reject the next profile as "sta is
     // connecting, cannot set config".
-    WiFi.disconnect(true, false);
+    WiFi.disconnect(true, false, 1000);
     WiFi.mode(WIFI_OFF);
     delay(100);
     WiFi.mode(WIFI_STA);
