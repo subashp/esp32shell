@@ -39,3 +39,8 @@ that path during startup.
 Live SFTP interoperability, persistence, and signed bundle execution still
 require flashing this ESP-IDF image, provisioning a valid ASN.1 host private key
 and password digest in NVS, and completing a Wi-Fi acceptance run.
+
+Hardware status (COM4, 10.0.0.110): password authentication, SFTP subsystem
+negotiation, `/littlefs` as the remote working directory, and directory listing
+have been verified. The current upload/download round-trip still closes the
+connection during transfer and remains an open interoperability defect.
