@@ -89,37 +89,82 @@ class Esp32Services final : public DeviceServices {
   void wifiStatus(CommandOutput& output) override {
     const char* state = wifiService.state() == WifiState::Connected ? "connected" :
                         wifiService.state() == WifiState::Connecting ? "connecting" : "offline";
-    Serial.printf("wifi=%s configured=%s ip=%s rssi=%d", state,
-                  wifiService.configured() ? "yes" : "no", wifiService.ipAddress(), wifiService.rssi());
+    Serial.printf("wifi=%s configured=%s active_profile=%u ip=%s rssi=%d", state,
+                  wifiService.configured() ? "yes" : "no",
+                  static_cast<unsigned>(wifiService.activeSlot()), wifiService.ipAddress(), wifiService.rssi());
     output.line("");
   }
   bool wifiConfig(const char* arguments, CommandOutput& output) override {
-    const char* separator = strchr(arguments, ' ');
-    if (separator == nullptr || separator == arguments || separator[1] == '\0') {
-      output.line("error: usage wifi-config <ssid> <password>");
+    if (arguments == nullptr) { output.line("error: usage wifi-config [<0|1> ]<ssid> <password>"); return false; }
+    size_t slot = 0;
+    const char* profileArguments = arguments;
+    if ((arguments[0] == '0' || arguments[0] == '1') && arguments[1] == ' ') {
+      slot = static_cast<size_t>(arguments[0] - '0');
+      profileArguments = arguments + 2;
+    }
+    const char* separator = strchr(profileArguments, ' ');
+    if (separator == nullptr || separator == profileArguments || separator[1] == '\0') {
+      output.line("error: usage wifi-config [<0|1> ]<ssid> <password>");
       return false;
     }
     char ssid[33] = {};
-    const size_t ssidLength = static_cast<size_t>(separator - arguments);
+    const size_t ssidLength = static_cast<size_t>(separator - profileArguments);
     if (ssidLength >= sizeof(ssid)) {
       output.line("error: SSID is too long");
       return false;
     }
-    memcpy(ssid, arguments, ssidLength);
+    memcpy(ssid, profileArguments, ssidLength);
     ssid[ssidLength] = '\0';
-    if (!wifiService.configure(ssid, separator + 1, millis())) {
+    if (!wifiService.configure(slot, ssid, separator + 1, millis())) {
       output.line("error: invalid Wi-Fi configuration");
       return false;
     }
-    preferences_.putString("wifi_ssid", ssid);
-    preferences_.putString("wifi_password", separator + 1);
-    output.line("wifi configuration accepted and persisted");
+    char ssidKey[18] = {}, passwordKey[22] = {};
+    snprintf(ssidKey, sizeof(ssidKey), "wifi_ssid_%u", static_cast<unsigned>(slot));
+    snprintf(passwordKey, sizeof(passwordKey), "wifi_password_%u", static_cast<unsigned>(slot));
+    preferences_.putString(ssidKey, ssid);
+    preferences_.putString(passwordKey, separator + 1);
+    if (slot == 0) {
+      preferences_.putString("wifi_ssid", ssid);
+      preferences_.putString("wifi_password", separator + 1);
+    }
+    output.line("wifi profile accepted and persisted");
+    return true;
+  }
+  void wifiProfiles(CommandOutput& output) override {
+    for (size_t slot = 0; slot < WifiService::kMaxProfiles; ++slot) {
+      char line[64] = {};
+      snprintf(line, sizeof(line), "wifi_profile_%u=%s ssid=%s", static_cast<unsigned>(slot),
+               wifiService.configured(slot) ? "set" : "unset",
+               wifiService.configured(slot) ? wifiService.ssid(slot) : "<unset>");
+      output.line(line);
+    }
+  }
+  bool wifiProfileClear(const char* arguments, CommandOutput& output) override {
+    if (arguments == nullptr || (arguments[0] != '0' && arguments[0] != '1') ||
+        strcmp(arguments + 1, " --confirm") != 0) {
+      output.line("error: usage wifi-profile-clear <0|1> --confirm");
+      return false;
+    }
+    const size_t slot = static_cast<size_t>(arguments[0] - '0');
+    wifiService.clear(slot);
+    char ssidKey[18] = {}, passwordKey[22] = {};
+    snprintf(ssidKey, sizeof(ssidKey), "wifi_ssid_%u", static_cast<unsigned>(slot));
+    snprintf(passwordKey, sizeof(passwordKey), "wifi_password_%u", static_cast<unsigned>(slot));
+    preferences_.remove(ssidKey);
+    preferences_.remove(passwordKey);
+    if (slot == 0) { preferences_.remove("wifi_ssid"); preferences_.remove("wifi_password"); }
+    output.line("wifi profile cleared");
     return true;
   }
   void configList(CommandOutput& output) override {
     output.line("config keys:");
     output.line(preferences_.isKey("wifi_ssid") ? "wifi_ssid=set" : "wifi_ssid=unset");
     output.line(preferences_.isKey("wifi_password") ? "wifi_password=<redacted>" : "wifi_password=unset");
+    output.line(preferences_.isKey("wifi_ssid_0") ? "wifi_ssid_0=set" : "wifi_ssid_0=unset");
+    output.line(preferences_.isKey("wifi_password_0") ? "wifi_password_0=<redacted>" : "wifi_password_0=unset");
+    output.line(preferences_.isKey("wifi_ssid_1") ? "wifi_ssid_1=set" : "wifi_ssid_1=unset");
+    output.line(preferences_.isKey("wifi_password_1") ? "wifi_password_1=<redacted>" : "wifi_password_1=unset");
     output.line(preferences_.isKey("ssh_username") ? "ssh_username=set" : "ssh_username=unset");
     output.line(preferences_.isKey("ssh_pw_hash") ? "ssh_password=<protected>" : "ssh_password=unset");
     output.line(preferences_.isKey("ssh_host_key") ? "ssh_host_key=<protected>" : "ssh_host_key=unset");
@@ -343,9 +388,16 @@ class Esp32Services final : public DeviceServices {
     LittleFS.begin(true, "/littlefs", 10, "littlefs");
   }
   void loadWifi() {
-    String ssid = preferences_.getString("wifi_ssid", "");
-    String password = preferences_.getString("wifi_password", "");
-    if (ssid.length() > 0 && password.length() > 0) wifiService.configure(ssid.c_str(), password.c_str(), millis());
+    for (size_t slot = 0; slot < WifiService::kMaxProfiles; ++slot) {
+      char ssidKey[18] = {}, passwordKey[22] = {};
+      snprintf(ssidKey, sizeof(ssidKey), "wifi_ssid_%u", static_cast<unsigned>(slot));
+      snprintf(passwordKey, sizeof(passwordKey), "wifi_password_%u", static_cast<unsigned>(slot));
+      String ssid = preferences_.getString(ssidKey, "");
+      String password = preferences_.getString(passwordKey, "");
+      if (ssid.length() == 0 && slot == 0) ssid = preferences_.getString("wifi_ssid", "");
+      if (password.length() == 0 && slot == 0) password = preferences_.getString("wifi_password", "");
+      if (ssid.length() > 0 && password.length() > 0) wifiService.configure(slot, ssid.c_str(), password.c_str(), millis());
+    }
   }
   void recordLog(const char* message) { logs_.append(message); }
   bool verifySshPassword(const char* password) {

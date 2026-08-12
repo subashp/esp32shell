@@ -29,6 +29,8 @@ class CommandServices final : public esp32shell::DeviceServices {
   void reboot(esp32shell::CommandOutput& output) override { output.line("rebooting"); esp_restart(); }
   void wifiStatus(esp32shell::CommandOutput& output) override { output.line("wifi=connected"); }
   bool wifiConfig(const char*, esp32shell::CommandOutput& output) override { unavailable(output); return false; }
+  void wifiProfiles(esp32shell::CommandOutput& output) override { unavailable(output); }
+  bool wifiProfileClear(const char*, esp32shell::CommandOutput& output) override { unavailable(output); return false; }
   void configList(esp32shell::CommandOutput& output) override { unavailable(output); }
   void configGet(const char*, esp32shell::CommandOutput& output) override { unavailable(output); }
   bool configSet(const char*, esp32shell::CommandOutput& output) override { unavailable(output); return false; }

@@ -1,0 +1,10 @@
+@{
+    # Copy this file to esp32shell.local.psd1 and fill in real values.
+    # The .local.psd1 file is ignored and must never be committed.
+    Port = 'COM4'
+    WifiProfiles = @(
+        @{ Ssid = 'primary-network'; Password = 'replace-with-password' }
+        # Optional second profile; remove this entry if unused.
+        @{ Ssid = 'backup-network'; Password = 'replace-with-password' }
+    )
+}

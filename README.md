@@ -6,7 +6,10 @@ An experimental SSH-accessible command shell and device toolbox for the ESP32-S3
 
 The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. Boot/banner acceptance is verified, including the 32MB partition table and coredump partition. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
 
-The public roadmap is tracked in [docs/PLAN.md](docs/PLAN.md). A detailed local execution plan may be kept at `docs/SHELL_PLAN.md`; it is intentionally ignored because it can contain machine-specific workflow notes. Machine-local build output and credentials must remain untracked.
+The implementation plans are local-only and ignored: `docs/PLAN.md`,
+`docs/SHELL_PLAN.md`, and `docs/NEXT_PLAN.md`. This keeps machine-specific
+workflow notes out of clones. The source architecture is documented in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Hardware target
 
@@ -43,6 +46,32 @@ arduino-cli board listall "ESP32S3 Dev Module"
 ```
 
 The CLI configuration and downloaded cores are machine-local. The workflow keeps them outside the repository by default; do not commit them to this repository.
+
+### Clone-to-board quick start
+
+After cloning on Windows, the workflow script can install Arduino CLI through
+WinGet (when available), bootstrap the pinned ESP32 core, build, verify, flash,
+run UART acceptance commands, disconnect COM4, and return to PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+Copy-Item .\config\esp32shell.local.psd1.example .\config\esp32shell.local.psd1
+# Edit the local file and replace both example SSIDs/passwords.
+.\tools\build_flash_monitor.cmd -Clean -ConfigPath .\config\esp32shell.local.psd1
+```
+
+The script uses the required `FlashSize=32M,PSRAM=opi` settings and keeps CLI
+state under `%TEMP%`. If the automatic install cannot run, install Arduino CLI
+with `winget install --id ArduinoSA.CLI -e` or the official installer, reopen
+PowerShell, and rerun the same command. If CLI state reports a Windows symlink
+access error, add `-ResetCliState` once.
+
+The local PowerShell data file is the supported credential input. It may contain
+one or two `WifiProfiles` entries; passwords are sent over the USB UART to the
+already-flashed Arduino firmware and are not printed. Never commit the `.local.psd1`
+file. A data file cannot put the board into download mode, bypass a locked COM
+port, or physically reset the board; for those cases put the ESP32-S3 in download
+mode and close any other serial monitor before rerunning.
 
 ### Build the firmware
 
@@ -155,8 +184,11 @@ Useful variants:
 .\tools\build_flash_monitor.ps1 -SkipUpload -SkipTest     # build and verify only
 .\tools\build_flash_monitor.ps1 -Clean -ResetCliState     # rebuild CLI state if bootstrap state is damaged
 .\tools\build_flash_monitor.ps1 -Port COM4                # reuse the build directory
+.\tools\build_flash_monitor.ps1 -ResetCliState            # repair a stale CLI state directory
 ```
 
 ## Repository roadmap
 
-See [docs/PLAN.md](docs/PLAN.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). If present locally, also use `docs/SHELL_PLAN.md` for the detailed execution checklist.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). If present locally, use
+`docs/NEXT_PLAN.md` for the current execution checklist; the older plan files
+are archived and intentionally ignored.

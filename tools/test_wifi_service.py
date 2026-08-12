@@ -21,19 +21,28 @@ class WifiServiceContractTests(unittest.TestCase):
         self.assertIn("kRetryIntervalMs = 10000", self.wifi)
 
     def test_credentials_are_bounded_and_not_exposed_by_status(self):
-        self.assertIn("char ssid_[33]", self.wifi)
-        self.assertIn("char password_[65]", self.wifi)
+        self.assertIn("char ssid[33]", self.wifi)
+        self.assertIn("char password[65]", self.wifi)
         self.assertNotIn("password_", self.wifi.split("int rssi")[0])
 
     def test_offline_behavior_and_retry_are_explicit(self):
         self.assertIn("if (!configured_)", self.wifi)
         self.assertIn("if (now < nextAttemptAt_)", self.wifi)
-        self.assertIn("driver_.begin(ssid_, password_)", self.wifi)
+        self.assertIn("driver_.begin(profiles_[slot].ssid, profiles_[slot].password)", self.wifi)
         self.assertIn('"0.0.0.0"', self.wifi)
 
     def test_core_phase_two_commands_are_reserved(self):
         self.assertIn('"wifi-status"', self.core)
         self.assertIn('"wifi-config "', self.core)
+        self.assertIn('"wifi-profiles"', self.core)
+        self.assertIn('"wifi-profile-clear"', self.core)
+
+    def test_two_profile_failover_and_safe_metadata_are_present(self):
+        self.assertIn("kMaxProfiles = 2", self.wifi)
+        self.assertIn("nextProfile_ = (slot + 1) % kMaxProfiles", self.wifi)
+        self.assertIn("activeSlot_ = slot", self.wifi)
+        sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
+        self.assertIn("wifi_profile_%u", sketch)
 
 
 if __name__ == "__main__":

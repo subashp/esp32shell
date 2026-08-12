@@ -22,6 +22,8 @@ class DeviceServices {
   virtual void reboot(CommandOutput& output) = 0;
   virtual void wifiStatus(CommandOutput& output) = 0;
   virtual bool wifiConfig(const char* arguments, CommandOutput& output) = 0;
+  virtual void wifiProfiles(CommandOutput& output) = 0;
+  virtual bool wifiProfileClear(const char* arguments, CommandOutput& output) = 0;
   virtual void configList(CommandOutput& output) = 0;
   virtual void configGet(const char* arguments, CommandOutput& output) = 0;
   virtual bool configSet(const char* arguments, CommandOutput& output) = 0;
@@ -80,11 +82,16 @@ class CommandCore {
     const char* wifiConfigPrefix = "wifi-config ";
     const size_t wifiConfigPrefixLength = strlen(wifiConfigPrefix);
     if (equals(command, length, "wifi-config")) {
-      output.line("error: usage wifi-config <ssid> <password>");
+      output.line("error: usage wifi-config [<0|1> ]<ssid> <password>");
       return CommandStatus::Invalid;
     }
     if (length > wifiConfigPrefixLength && strncmp(command, wifiConfigPrefix, wifiConfigPrefixLength) == 0) {
       return services.wifiConfig(command + wifiConfigPrefixLength, output) ? CommandStatus::Ok : CommandStatus::Invalid;
+    }
+    if (equals(command, length, "wifi-profiles")) { services.wifiProfiles(output); return CommandStatus::Ok; }
+    if (equals(command, length, "wifi-profile-clear")) { output.line("error: usage wifi-profile-clear <0|1> --confirm"); return CommandStatus::Invalid; }
+    if (startsWith(command, length, "wifi-profile-clear ")) {
+      return services.wifiProfileClear(command + 19, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
     if (equals(command, length, "config-list")) { services.configList(output); return CommandStatus::Ok; }
     if (equals(command, length, "config-get")) { output.line("error: usage config-get <key>"); return CommandStatus::Invalid; }
@@ -152,7 +159,9 @@ class CommandCore {
     output.line("  heap         Show free heap");
     output.line("  reboot       Restart the device");
     output.line("  wifi-status  Show Wi-Fi state");
-    output.line("  wifi-config  Configure and persist Wi-Fi");
+    output.line("  wifi-config  Configure and persist Wi-Fi profile");
+    output.line("  wifi-profiles List configured Wi-Fi profiles");
+    output.line("  wifi-profile-clear Clear a profile with --confirm");
     output.line("  config-list   List persisted configuration keys");
     output.line("  config-get    Read a configuration value");
     output.line("  config-set    Set a configuration value");

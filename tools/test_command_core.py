@@ -47,7 +47,8 @@ class CommandCoreContractTests(unittest.TestCase):
 
     def test_argument_commands_provide_usage_without_arguments(self):
         for usage in (
-            "usage wifi-config <ssid> <password>",
+            "usage wifi-config [<0|1> ]<ssid> <password>",
+            "usage wifi-profile-clear <0|1> --confirm",
             "usage config-get <key>",
             "usage config-set <key> <value>",
             "usage config-clear --confirm",

@@ -5,6 +5,7 @@ param(
     [string]$CliPath = "arduino-cli",
     [string]$Esp32CoreVersion = "3.3.11",
     [string]$CliStateRoot = "",
+    [string]$ConfigPath = "",
     [int]$BootstrapRetries = 2,
     [string[]]$TestCommands = @("help", "version", "device-info", "uptime", "heap", "wifi-status", "app-list", "app-run diagnostics", "app-status", "app-stop diagnostics", "app-run led-blink", "app-status", "app-stop led-blink", "app-status", "exit", "quit"),
     [int]$TestTimeoutSeconds = 2,
@@ -12,6 +13,7 @@ param(
     [switch]$ResetCliState,
     [switch]$SkipUpload,
     [switch]$SkipTest,
+    [switch]$NoAutoInstallCli,
     [switch]$OpenMonitor,
     [switch]$SkipMonitor
 )
@@ -21,7 +23,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $sketch = Join-Path $repo "firmware\arduino\esp32shell"
 $build = Join-Path $repo ".build\arduino"
 if ([string]::IsNullOrWhiteSpace($CliStateRoot)) {
-    $CliStateRoot = Join-Path ([System.IO.Path]::GetTempPath()) "esp32shell-arduino-cli"
+    $CliStateRoot = Join-Path $repo ".build\arduino-cli"
 }
 $cliState = $CliStateRoot
 $cliConfig = Join-Path $cliState "arduino-cli.yaml"
@@ -29,6 +31,19 @@ $cliData = Join-Path $cliState "data"
 $cliDownloads = Join-Path $cliState "downloads"
 $cliUser = Join-Path $cliState "user"
 $partitions = Join-Path $sketch "partitions.csv"
+
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $defaultConfig = Join-Path $repo "config\esp32shell.local.psd1"
+    if (Test-Path -LiteralPath $defaultConfig) { $ConfigPath = $defaultConfig }
+}
+$workflowConfig = $null
+if (-not [string]::IsNullOrWhiteSpace($ConfigPath)) {
+    if (-not (Test-Path -LiteralPath $ConfigPath)) { throw "Workflow config was not found: $ConfigPath" }
+    $workflowConfig = Import-PowerShellDataFile -LiteralPath $ConfigPath
+    if ($workflowConfig.ContainsKey('Port') -and -not [string]::IsNullOrWhiteSpace([string]$workflowConfig.Port)) {
+        $Port = [string]$workflowConfig.Port
+    }
+}
 
 $cli = Get-Command $CliPath -ErrorAction SilentlyContinue
 if (-not $cli -and $CliPath -eq "arduino-cli") {
@@ -38,7 +53,22 @@ if (-not $cli -and $CliPath -eq "arduino-cli") {
     }
 }
 if (-not $cli) {
-    throw "Arduino CLI was not found. Install it and ensure '$CliPath' is on PATH."
+    if ($NoAutoInstallCli) {
+        throw "Arduino CLI was not found. Install it with WinGet (winget install --id ArduinoSA.CLI -e) or add it to PATH."
+    }
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw "Arduino CLI was not found and WinGet is unavailable. Install Arduino CLI from https://arduino.github.io/arduino-cli/latest/installation/, then rerun this script."
+    }
+    Write-Host "Arduino CLI not found; installing ArduinoSA.CLI with WinGet..."
+    & $winget.Source install --id ArduinoSA.CLI -e --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { throw "WinGet could not install Arduino CLI (exit code $LASTEXITCODE)." }
+    $cli = Get-Command $CliPath -ErrorAction SilentlyContinue
+    if (-not $cli) {
+        $installedCli = Join-Path ${env:ProgramFiles} "Arduino CLI\arduino-cli.exe"
+        if (Test-Path -LiteralPath $installedCli) { $cli = Get-Command $installedCli }
+    }
+    if (-not $cli) { throw "Arduino CLI was installed, but this PowerShell process cannot find it. Open a new terminal and rerun." }
 }
 if (-not (Test-Path -LiteralPath $partitions)) {
     throw "Partition table not found: $partitions"
@@ -47,8 +77,13 @@ if (-not (Test-Path -LiteralPath $partitions)) {
 if ($Clean -and (Test-Path -LiteralPath $build)) {
     Remove-Item -LiteralPath $build -Recurse -Force
 }
-if ($ResetCliState -and (Test-Path -LiteralPath $cliState)) {
-    Remove-Item -LiteralPath $cliState -Recurse -Force
+if ($ResetCliState) {
+    $cliState = Join-Path ([System.IO.Path]::GetTempPath()) ("esp32shell-arduino-cli-" + [guid]::NewGuid().ToString("N"))
+    $cliConfig = Join-Path $cliState "arduino-cli.yaml"
+    $cliData = Join-Path $cliState "data"
+    $cliDownloads = Join-Path $cliState "downloads"
+    $cliUser = Join-Path $cliState "user"
+    Write-Host "Using fresh CLI state after -ResetCliState: $cliState"
 }
 New-Item -ItemType Directory -Force -Path $build | Out-Null
 New-Item -ItemType Directory -Force -Path $cliData,$cliDownloads,$cliUser | Out-Null
@@ -213,12 +248,44 @@ function Invoke-UartTerminalTest {
     }
 }
 
+function Invoke-ConfiguredWifiProvisioning {
+    param([hashtable]$Config)
+    if ($null -eq $Config -or $null -eq $Config.WifiProfiles) { return }
+    $profiles = @($Config.WifiProfiles)
+    if ($profiles.Count -gt 2) { throw "WifiProfiles may contain at most two entries." }
+    $serial = New-Object System.IO.Ports.SerialPort($Port, $BaudRate,
+        [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One)
+    $serial.DtrEnable = $false; $serial.RtsEnable = $false
+    $serial.ReadTimeout = 100; $serial.WriteTimeout = 1000
+    try {
+        $serial.Open(); Start-Sleep -Milliseconds 500
+        $serial.DiscardInBuffer(); $serial.DiscardOutBuffer()
+        for ($profileIndex = 0; $profileIndex -lt $profiles.Count; $profileIndex++) {
+            $profile = $profiles[$profileIndex]
+            if ($null -eq $profile -or [string]::IsNullOrWhiteSpace([string]$profile.Ssid) -or
+                [string]::IsNullOrWhiteSpace([string]$profile.Password)) {
+                throw "Each WifiProfiles entry requires Ssid and Password."
+            }
+            $slot = $profileIndex
+            $serial.WriteLine("wifi-config $slot $($profile.Ssid) $($profile.Password)")
+            $deadline = [DateTime]::UtcNow.AddSeconds(8); $output = New-Object Text.StringBuilder
+            while ([DateTime]::UtcNow -lt $deadline) {
+                if ($serial.BytesToRead -gt 0) { [void]$output.Append($serial.ReadExisting()); if ($output.ToString().Contains("wifi profile accepted")) { break } }
+                Start-Sleep -Milliseconds 50
+            }
+            if (-not $output.ToString().Contains("wifi profile accepted")) { throw "Wi-Fi profile $slot was not accepted: $($output.ToString().Trim())" }
+            Write-Host "Configured Wi-Fi profile $slot ($($profile.Ssid)); password was not displayed."
+        }
+    } finally { if ($serial.IsOpen) { $serial.Close() }; $serial.Dispose() }
+}
+
 if (-not $SkipUpload) {
     & $cli.Source @cliGlobalArgs upload `
         --fqbn esp32:esp32:esp32s3 `
         --port $Port `
         --input-dir $build
     if ($LASTEXITCODE -ne 0) { throw "Arduino CLI upload failed with exit code $LASTEXITCODE." }
+    Invoke-ConfiguredWifiProvisioning -Config $workflowConfig
 }
 
 if (-not $SkipTest) {

@@ -2,6 +2,7 @@
 build/
 firmware/esp-idf/managed_components/
 .build/
+.build\
 .pio/
 *.elf
 *.map
@@ -25,6 +26,7 @@ credentials*
 secrets/
 device-state/
 logs/
+config/*.local.psd1
 
 # Local execution plan
 docs/SHELL_PLAN.md
