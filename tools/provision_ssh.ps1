@@ -14,6 +14,9 @@ if ($SshPassword.Length -lt 12 -or $SshPassword -notmatch '[A-Z]' -or
     $SshPassword -notmatch '[a-z]' -or $SshPassword -notmatch '\d') {
     throw "SSH password must be at least 12 characters and contain upper, lower, and digit characters."
 }
+if ($SshPassword -eq 'ESP32S3-WROOM-2') {
+    throw "Do not use the board model as the SSH password. Provide a separate strong password."
+}
 
 $openssl = Get-Command $OpenSslPath -ErrorAction SilentlyContinue
 if (-not $openssl) { throw "OpenSSL was not found. Install it or pass -OpenSslPath." }
@@ -23,9 +26,11 @@ $pemPath = Join-Path $tempRoot "host-key.pem"
 $derPath = Join-Path $tempRoot "host-key.der"
 
 try {
-    & $openssl.Source genrsa -traditional -out $pemPath 2048 2>$null
+    # OpenSSL 3 prints normal status text such as 'writing RSA key' on stderr.
+    # Merge and discard that informational stream; preserve the exit-code check.
+    & $openssl.Source genrsa -traditional -out $pemPath 2048 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL RSA key generation failed." }
-    & $openssl.Source rsa -in $pemPath -outform DER -out $derPath 2>$null
+    & $openssl.Source rsa -in $pemPath -outform DER -out $derPath 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL DER conversion failed." }
     $hostKeyHex = ([BitConverter]::ToString([IO.File]::ReadAllBytes($derPath))).Replace('-', '')
 

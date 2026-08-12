@@ -93,6 +93,8 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("-outform DER", script)
         self.assertIn("config-set ssh_host_key", script)
         self.assertIn("Remove-Item -LiteralPath $tempRoot", script)
+        self.assertIn("writing RSA key", script)
+        self.assertIn("separate strong password", script)
 
 
 if __name__ == "__main__":
