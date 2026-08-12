@@ -44,8 +44,10 @@ class ArduinoWifiDriver final : public WifiDriver {
     // Without this, Arduino-ESP32 can reject the next profile as "sta is
     // connecting, cannot set config".
     WiFi.disconnect(true, false);
-    delay(25);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
     WiFi.mode(WIFI_STA);
+    delay(100);
   }
   int rssi() const override { return WiFi.RSSI(); }
   const char* ipAddress() const override {

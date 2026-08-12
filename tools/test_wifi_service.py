@@ -45,6 +45,8 @@ class WifiServiceContractTests(unittest.TestCase):
         self.assertIn("if (previousAttempt) driver_.disconnect();", self.wifi)
         sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
         self.assertIn("WiFi.disconnect(true, false)", sketch)
+        self.assertIn("WiFi.mode(WIFI_OFF)", sketch)
+        self.assertIn("WiFi.mode(WIFI_STA)", sketch)
         self.assertIn("Serial.write(static_cast<uint8_t>(c))", sketch)
         sketch = (ROOT / "firmware" / "arduino" / "esp32shell" / "esp32shell.ino").read_text(encoding="utf-8")
         self.assertIn("wifi_profile_%u", sketch)
