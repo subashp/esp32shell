@@ -40,7 +40,7 @@ Acceptance: host Wi-Fi/storage contracts and ESP32 compile pass; reboot persiste
 - [x] Forward SSH stdin/stdout to the shared command dispatcher.
 - [x] Add bounded line input, disconnect handling, and server-task limits.
 
-Acceptance: wolfSSH ESP-IDF image builds and the serial firmware is hardware-tested. Live LAN SSH authentication remains pending host-key provisioning and a Wi-Fi acceptance run.
+Acceptance: wolfSSH ESP-IDF image builds with SFTP enabled and the serial firmware is hardware-tested. Live LAN SSH authentication remains pending host-key provisioning and a Wi-Fi acceptance run.
 
 ## Phase 4 — Device toolbox
 
@@ -61,7 +61,7 @@ Acceptance: GPIO/log safety contracts are host-tested; live diagnostics remain p
 - [x] Wire NVS configuration and LittleFS list/read/write/remove commands.
 - Never print secrets in configuration output.
 
-Acceptance: Arduino LittleFS/NVS persistence and COM4 file commands are implemented. The ESP-IDF SSH upload endpoint is path-restricted but requires the target filesystem VFS mount before live upload acceptance.
+Acceptance: Arduino LittleFS/NVS persistence and COM4 file commands are implemented. The ESP-IDF target mounts its LittleFS partition at `/littlefs`; live persistence acceptance still requires flashing and exercising that image.
 
 ## Phase 6 — Security and recovery
 
@@ -93,11 +93,11 @@ Acceptance: OTA policy is host-tested; signed dual-partition installation remain
 - [x] Add bounded app registration, heap admission checks, and lifecycle supervision.
 - [x] Add a signed, bounded, data-driven app-bundle format contract.
 - [x] Add an authenticated, `/apps`-restricted file-upload command on the SSH shell path.
-- [ ] Mount LittleFS in the ESP-IDF SSH target and validate upload persistence.
-- [ ] Connect signed bundle verification to app installation and lifecycle launch.
+- [x] Mount LittleFS in the ESP-IDF SSH target and add the wolfSSH SFTP filesystem adapter.
+- [x] Connect signed bundle verification to app installation and lifecycle launch.
 - [ ] Validate live SSH/SFTP-equivalent upload and signed bundle execution over Wi-Fi.
 
-Acceptance: built-in diagnostics and LED-blink lifecycle passed on COM4. Remote app delivery and signed bundle execution remain pending LittleFS mount, key provisioning, and live network acceptance.
+Acceptance: built-in diagnostics and LED-blink lifecycle passed on COM4. Signed bundle verification and lifecycle execution are implemented; remote delivery and live execution remain pending valid host-key/Wi-Fi provisioning and network acceptance.
 
 ## Execution rules
 

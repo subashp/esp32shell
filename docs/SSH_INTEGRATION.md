@@ -16,7 +16,11 @@ with `tools/build_espidf_ssh.cmd`; the generated image is separate from the
 Arduino COM4 firmware.
 
 The authenticated shell also exposes the path-restricted command
-`fs-write /apps/<name> <content>`. This is the current authenticated upload
-endpoint. It is not yet a drop-in SFTP server: the ESP-IDF target still needs a
-LittleFS VFS mount and live Wi-Fi validation before remote app upload can be
-accepted.
+`fs-write /apps/<name> <content>`. The ESP-IDF target additionally enables the
+wolfSSH SFTP subsystem and roots its default path at `/littlefs`, making a
+standard SFTP client the intended file-transfer path. LittleFS is mounted at
+that path during startup.
+
+Live SFTP interoperability, persistence, and signed bundle execution still
+require flashing this ESP-IDF image, provisioning a valid ASN.1 host private key
+and password digest in NVS, and completing a Wi-Fi acceptance run.
