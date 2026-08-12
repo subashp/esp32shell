@@ -13,7 +13,7 @@ class SshSessionContractTests(unittest.TestCase):
     def test_limits_and_timeout_are_bounded(self):
         source = SSH.read_text(encoding="utf-8")
         self.assertIn("kMaxSessions = 2", source)
-        self.assertIn("kMaxLineLength = 2048", source)
+        self.assertIn("kMaxLineLength = 4096", source)
         self.assertIn("kIdleTimeoutMs = 300000", source)
         self.assertIn("expire(unsigned long now)", source)
 
