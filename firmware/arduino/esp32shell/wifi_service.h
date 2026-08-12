@@ -21,6 +21,7 @@ class WifiService {
  public:
   static constexpr size_t kMaxProfiles = 2;
   static constexpr unsigned long kRetryIntervalMs = 10000;
+  static constexpr unsigned long kReconnectCooldownMs = 500;
 
   explicit WifiService(WifiDriver& driver) : driver_(driver) {}
 
@@ -38,6 +39,7 @@ class WifiService {
     configured_ = anyConfigured();
     nextAttemptAt_ = now;
     state_ = WifiState::Offline;
+    cooldown_ = false;
     return true;
   }
 
@@ -57,6 +59,7 @@ class WifiService {
       driver_.disconnect();
       state_ = WifiState::Offline;
       nextAttemptAt_ = 0;
+      cooldown_ = false;
     }
   }
 
@@ -72,11 +75,17 @@ class WifiService {
     const bool previousAttempt = state_ == WifiState::Connecting;
     state_ = WifiState::Offline;
     if (now < nextAttemptAt_) return;
+    if (cooldown_) cooldown_ = false;
     const size_t slot = nextProfile();
     if (slot >= kMaxProfiles) { state_ = WifiState::Offline; return; }
     // Arduino-ESP32 rejects WiFi.begin() while the previous station attempt is
     // still active. End the bounded attempt before switching profiles.
-    if (previousAttempt) driver_.disconnect();
+    if (previousAttempt) {
+      driver_.disconnect();
+      cooldown_ = true;
+      nextAttemptAt_ = now + kReconnectCooldownMs;
+      return;
+    }
     driver_.begin(profiles_[slot].ssid, profiles_[slot].password);
     activeSlot_ = slot;
     state_ = WifiState::Connecting;
@@ -114,6 +123,7 @@ class WifiService {
   unsigned long nextAttemptAt_ = 0;
   WifiState state_ = WifiState::Offline;
   bool configured_ = false;
+  bool cooldown_ = false;
   size_t nextProfile_ = 0;
   size_t activeSlot_ = 0;
 };

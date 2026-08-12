@@ -492,7 +492,6 @@ void setup() {
 }
 
 void loop() {
-  wifiService.tick(millis());
   while (Serial.available()) {
     char c = static_cast<char>(Serial.read());
     if (c == '\n' || c == '\r') {
@@ -510,4 +509,7 @@ void loop() {
       lineEndingSeen = false;
     }
   }
+  // Keep command input responsive; Wi-Fi maintenance is deliberately
+  // cooperative and runs after the UART has been drained.
+  wifiService.tick(millis());
 }
