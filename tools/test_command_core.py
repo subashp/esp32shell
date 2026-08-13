@@ -45,6 +45,10 @@ class CommandCoreContractTests(unittest.TestCase):
         self.assertIn("SessionClosed", self.core)
         self.assertIn("press Ctrl-C to exit", self.sketch)
 
+    def test_serial_crlf_guard_is_cleared_after_lf(self):
+        self.assertIn("const bool isCr = c == '\\r';", self.sketch)
+        self.assertIn("lineEndingSeen = isCr;", self.sketch)
+
     def test_argument_commands_provide_usage_without_arguments(self):
         for usage in (
             "usage wifi-config [<0|1> ]<ssid> <password>",

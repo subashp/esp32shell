@@ -498,15 +498,17 @@ void setup() {
 void loop() {
   while (Serial.available()) {
     char c = static_cast<char>(Serial.read());
-    if (c == '\n' || c == '\r') {
-      // Serial monitors commonly send CRLF. Treat the pair as one line ending.
+    if (c == '\r' || c == '\n') {
+      // Serial monitors commonly send CRLF. Dispatch once for the pair, but
+      // clear the guard after LF so the next blank Enter is not swallowed.
+      const bool isCr = c == '\r';
       if (!lineEndingSeen) {
         Serial.println();
         commandCore.dispatch(readLine.c_str(), serialOutput, services);
         readLine = "";
         Serial.print("esp32shell> ");
       }
-      lineEndingSeen = true;
+      lineEndingSeen = isCr;
     } else if (readLine.length() < CommandCore::kMaxCommandLength + 1) {
       readLine += c;
       Serial.write(static_cast<uint8_t>(c));
