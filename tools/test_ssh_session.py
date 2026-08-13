@@ -93,7 +93,7 @@ class SshSessionContractTests(unittest.TestCase):
         source = (ROOT / "firmware/esp-idf/main/ssh_server.cpp").read_text(encoding="utf-8")
         self.assertIn("wolfSSH_CTX_SetChannelReqShellCb(context, shell_request)", source)
         self.assertIn("int shell_request(WOLFSSH_CHANNEL* channel", source)
-        self.assertIn("wolfSSH_ChannelIsPty(channel)", source)
+        self.assertNotIn("wolfSSH_ChannelIsPty", source)
         self.assertIn("const int channelResult = wolfSSH_worker(ssh, nullptr)", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):

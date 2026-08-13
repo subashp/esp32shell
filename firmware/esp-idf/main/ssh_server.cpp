@@ -104,8 +104,8 @@ void close_session(WOLFSSH* ssh, int fd) {
 
 int shell_request(WOLFSSH_CHANNEL* channel, void*) {
   if (channel == nullptr) return WS_BAD_ARGUMENT;
-  ESP_LOGI(kTag, "SSH shell channel request accepted: pty=%s",
-           wolfSSH_ChannelIsPty(channel) ? "yes" : "no");
+  (void)channel;
+  ESP_LOGI(kTag, "SSH shell channel request accepted");
   return WS_SUCCESS;
 }
 
