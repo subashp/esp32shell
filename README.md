@@ -198,6 +198,20 @@ and removes the temporary file. Credentials and key material are never stored
 in the repository. Flash the ESP-IDF image without erasing NVS, then monitor
 COM4 for the assigned IP and connect with an SSH/SFTP client on port `22222`.
 
+The ESP-IDF environment activated by a `.cmd` script does not persist into the
+calling PowerShell session. Flash the built SSH image with the repository
+wrapper instead of invoking `idf.py` directly from an unactivated shell:
+
+```powershell
+cd C:\path\to\esp32shell
+.\tools\flash_espidf_ssh.cmd COM4
+```
+
+This flashes the existing `firmware\esp-idf\build` image and preserves NVS;
+it does not erase the provisioned Wi-Fi credentials, SSH password digest, or
+host key. Build first with `.\tools\build_espidf_ssh.cmd` if the image is
+missing or stale.
+
 ### One-command UART workflow
 
 The reusable PowerShell workflow builds with the required 32MB/OPI options, verifies the generated artifacts and flash size, uploads to `COM4`, runs UART command tests using terminal output, closes the COM port, and returns:
