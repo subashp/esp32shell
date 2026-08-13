@@ -179,8 +179,18 @@ from the stable UART-only baseline:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
-  -Port COM4 -WifiSsid '<wifi-ssid>' -WifiPassword '<wifi-password>' `
-  -SshUsername 'esp32shell' -SshPassword '<separate-strong-ssh-password>'
+  -Port COM4 `
+  -WifiSsid '<wifi-ssid>' `
+  -SshUsername 'root'
+```
+
+When password parameters are omitted, the script prompts securely without
+echoing the values or placing them in the PowerShell command line:
+
+```text
+Wi-Fi password: *****************
+SSH password: ***************
+Provisioning completed on COM4. The DER host key remains in protected NVS; no key file was kept.
 ```
 
 The script creates a temporary 2048-bit RSA DER host key, stores it in NVS,
