@@ -21,6 +21,11 @@ class AppSupervisorContractTests(unittest.TestCase):
         self.assertIn("supervisor_.canStart", source)
         self.assertIn("supervisor_.markRunning", source)
 
+    def test_led_app_uses_addressable_rgb_api(self):
+        source = (ROOT / "firmware/arduino/esp32shell/esp32shell.ino").read_text(encoding="utf-8")
+        self.assertIn("rgbLedWrite(38", source)
+        self.assertNotIn("digitalWrite(38, !digitalRead(38))", source)
+
 
 if __name__ == "__main__":
     unittest.main()

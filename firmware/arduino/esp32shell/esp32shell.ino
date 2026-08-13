@@ -343,7 +343,7 @@ class Esp32Services final : public DeviceServices {
     if (strcmp(arguments, "led-blink") == 0) {
       if (ledBlinkTask_ != nullptr) { output.line("led-blink already running"); return true; }
       if (!supervisor_.canStart("led-blink", ESP.getFreeHeap())) { output.line("error: led-blink resource limit exceeded"); return false; }
-      pinMode(38, OUTPUT);
+      rgbLedWrite(38, 0, 24, 0);
       supervisor_.markStarting("led-blink");
       const BaseType_t result = xTaskCreatePinnedToCore(ledBlinkThunk, "led-blink", 3072, this, 1, &ledBlinkTask_, 1);
       if (result != pdPASS) { supervisor_.markFailed("led-blink"); output.line("error: led-blink task could not start"); return false; }
@@ -372,7 +372,7 @@ class Esp32Services final : public DeviceServices {
       if (ledBlinkTask_ == nullptr) { output.line("led-blink already stopped"); return true; }
       vTaskDelete(ledBlinkTask_);
       ledBlinkTask_ = nullptr;
-      digitalWrite(38, LOW);
+      rgbLedWrite(38, 0, 0, 0);
       supervisor_.markStopped("led-blink");
       logs_.append("led-blink app stopped");
       output.line("led-blink stopped");
@@ -430,8 +430,10 @@ class Esp32Services final : public DeviceServices {
   }
   static void ledBlinkThunk(void* context) {
     (void)context;
+    bool on = false;
     for (;;) {
-      digitalWrite(38, !digitalRead(38));
+      on = !on;
+      rgbLedWrite(38, on ? 0 : 0, on ? 24 : 0, 0);
       vTaskDelay(pdMS_TO_TICKS(500));
     }
   }
