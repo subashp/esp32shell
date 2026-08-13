@@ -98,6 +98,8 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("static volatile bool g_shellRequestAccepted = false", source)
         self.assertIn("g_shellRequestAccepted = true", source)
         self.assertIn("while (!g_shellRequestAccepted)", source)
+        self.assertIn("g_shellRequestAccepted = false;\n    const int accepted = wolfSSH_accept(ssh);", source)
+        self.assertNotIn("SshOutput output(ssh);\n  g_shellRequestAccepted = false;", source)
         self.assertIn('output.line("esp32shell>")', source)
         self.assertIn("for (int attempt = 0; attempt < 5; ++attempt)", source)
         self.assertIn("SSH shell output failed", source)

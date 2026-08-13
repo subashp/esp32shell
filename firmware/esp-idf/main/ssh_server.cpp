@@ -139,7 +139,6 @@ void serve_shell(WOLFSSH* ssh) {
   esp32shell::CommandCore core;
   esp32shell_idf::CommandServices services;
   SshOutput output(ssh);
-  g_shellRequestAccepted = false;
   // Authentication/channel open completes before interactive requests arrive.
   // Keep servicing wolfSSH until the shell callback has accepted the request;
   // one worker pass is insufficient because Windows sends pty-req and shell
@@ -283,6 +282,7 @@ void ssh_server_task(void*) {
     }
     wolfSSH_SetUserAuthCtx(ssh, &g_auth);
     wolfSSH_set_fd(ssh, client);
+    g_shellRequestAccepted = false;
     const int accepted = wolfSSH_accept(ssh);
     ESP_LOGI(kTag, "SSH handshake result=%d error=%d", accepted,
              wolfSSH_get_error(ssh));
