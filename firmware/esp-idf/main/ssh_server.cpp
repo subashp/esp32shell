@@ -102,6 +102,13 @@ void close_session(WOLFSSH* ssh, int fd) {
   if (fd >= 0) close(fd);
 }
 
+int shell_request(WOLFSSH_CHANNEL* channel, void*) {
+  if (channel == nullptr) return WS_BAD_ARGUMENT;
+  ESP_LOGI(kTag, "SSH shell channel request accepted: pty=%s",
+           wolfSSH_ChannelIsPty(channel) ? "yes" : "no");
+  return WS_SUCCESS;
+}
+
 class SshOutput final : public esp32shell::CommandOutput {
  public:
   explicit SshOutput(WOLFSSH* ssh) : ssh_(ssh) {}
@@ -122,6 +129,15 @@ void serve_shell(WOLFSSH* ssh) {
   SshOutput output(ssh);
   output.line("esp32shell ssh shell");
   output.line("Type 'help' for commands.");
+  // Authentication/channel open completes before interactive shell requests
+  // arrive. Service that request once so wolfSSH sends its success reply and
+  // leaves any already-buffered channel data available to stream_read().
+  const int channelResult = wolfSSH_worker(ssh, nullptr);
+  if (channelResult != WS_SUCCESS && channelResult != WS_CHAN_RXD &&
+      channelResult != WS_WANT_READ && channelResult != WS_WANT_WRITE) {
+    ESP_LOGW(kTag, "SSH shell channel setup failed (%d)", channelResult);
+    return;
+  }
   char line[esp32shell::CommandCore::kMaxCommandLength + 1] = {};
   size_t used = 0;
   uint8_t input[64] = {};
@@ -209,6 +225,7 @@ void ssh_server_task(void*) {
   }
   wolfSSH_SetUserAuth(context, user_auth);
   wolfSSH_CTX_SetBanner(context, "esp32shell authenticated shell\r\n");
+  wolfSSH_CTX_SetChannelReqShellCb(context, shell_request);
 
   const int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   if (listener < 0) {
