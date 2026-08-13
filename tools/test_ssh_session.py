@@ -105,6 +105,7 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("writing RSA key", script)
         self.assertIn("separate strong password", script)
         self.assertIn("Start-Process", script)
+        self.assertIn('wifi profile accepted and persisted', script)
 
 
 if __name__ == "__main__":

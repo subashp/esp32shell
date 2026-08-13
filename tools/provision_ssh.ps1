@@ -83,7 +83,7 @@ try {
             throw "Device did not confirm '$($Command.Split(' ')[0])'. Output: $($text.ToString())"
         }
 
-        Send-Command "wifi-config $WifiSsid $WifiPassword" "wifi configuration accepted"
+        Send-Command "wifi-config $WifiSsid $WifiPassword" "wifi profile accepted and persisted"
         Send-Command "config-set ssh_username $SshUsername" "configuration updated"
         Send-Command "config-set ssh_password $SshPassword" "configuration updated"
         Send-Command "config-set ssh_host_key $hostKeyHex" "configuration updated"
