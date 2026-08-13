@@ -283,9 +283,27 @@ void ssh_server_task(void*) {
     wolfSSH_SetUserAuthCtx(ssh, &g_auth);
     wolfSSH_set_fd(ssh, client);
     g_shellRequestAccepted = false;
-    const int accepted = wolfSSH_accept(ssh);
-    ESP_LOGI(kTag, "SSH handshake result=%d error=%d", accepted,
-             wolfSSH_get_error(ssh));
+    int accepted = WS_FATAL_ERROR;
+    int handshakeAttempts = 0;
+    for (; handshakeAttempts < 300; ++handshakeAttempts) {
+      accepted = wolfSSH_accept(ssh);
+      const int error = wolfSSH_get_error(ssh);
+      if (accepted == WS_SUCCESS || accepted == WS_SFTP_COMPLETE) break;
+      if (accepted == WS_WANT_READ || accepted == WS_WANT_WRITE ||
+          accepted == WS_CHAN_RXD || accepted == WS_AUTH_PENDING ||
+          error == WS_WANT_READ || error == WS_WANT_WRITE ||
+          error == WS_CHAN_RXD || error == WS_AUTH_PENDING) {
+        if (handshakeAttempts == 0 || handshakeAttempts % 25 == 0) {
+          ESP_LOGI(kTag, "SSH handshake pending result=%d error=%d attempt=%d",
+                   accepted, error, handshakeAttempts + 1);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+        continue;
+      }
+      break;
+    }
+    ESP_LOGI(kTag, "SSH handshake result=%d error=%d attempts=%d", accepted,
+             wolfSSH_get_error(ssh), handshakeAttempts + 1);
     if (accepted == WS_SFTP_COMPLETE) {
       serve_sftp(ssh);
       close_session(ssh, client);
