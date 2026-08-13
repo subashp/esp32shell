@@ -275,6 +275,7 @@ void ssh_server_task(void*) {
   while (g_startRequested) {
     const int client = accept(listener, nullptr, nullptr);
     if (client < 0) continue;
+    ESP_LOGI(kTag, "SSH TCP client accepted");
     WOLFSSH* ssh = wolfSSH_new(context);
     if (ssh == nullptr) {
       close(client);
@@ -283,6 +284,8 @@ void ssh_server_task(void*) {
     wolfSSH_SetUserAuthCtx(ssh, &g_auth);
     wolfSSH_set_fd(ssh, client);
     const int accepted = wolfSSH_accept(ssh);
+    ESP_LOGI(kTag, "SSH handshake result=%d error=%d", accepted,
+             wolfSSH_get_error(ssh));
     if (accepted == WS_SFTP_COMPLETE) {
       serve_sftp(ssh);
       close_session(ssh, client);
@@ -295,6 +298,7 @@ void ssh_server_task(void*) {
     }
     ESP_LOGI(kTag, "SSH client authenticated");
     serve_shell(ssh);
+    ESP_LOGI(kTag, "SSH shell session ended");
     close_session(ssh, client);
   }
   close(listener);

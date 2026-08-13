@@ -102,6 +102,9 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("for (int attempt = 0; attempt < 5; ++attempt)", source)
         self.assertIn("SSH shell output failed", source)
         self.assertIn("WS_WINDOW_FULL", source)
+        self.assertIn("SSH TCP client accepted", source)
+        self.assertIn("SSH handshake result=%d error=%d", source)
+        self.assertIn("SSH shell session ended", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
