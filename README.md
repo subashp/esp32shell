@@ -1,10 +1,20 @@
 # esp32shell
 
-An experimental SSH-accessible command shell and device toolbox for the ESP32-S3 DevKitC-1.
+An experimental UART command shell and device toolbox for the ESP32-S3-WROOM-2.
+SSH transport work remains experimental follow-up work.
 
 ## Current status
 
-The ESP32-S3 sketch builds and has been flashed from Windows using Arduino CLI on `COM4`. Boot/banner acceptance is verified, including the 32MB partition table and coredump partition. The current firmware provides the transport-neutral command core, serial shell, Wi-Fi state/retry path, and bounded policy modules for the later SSH, storage, security, diagnostics, and OTA work.
+Stable baseline: `stable-basic-shell-2026-08-12` (commit `71e8166`). The
+firmware builds and has been flashed from Windows using Arduino CLI on `COM4`.
+The baseline provides a responsive UART prompt, persisted dual-profile Wi-Fi,
+basic app lifecycle commands, diagnostics, storage/configuration commands, and
+addressable RGB LED blinking. In the verified hardware state, profile 0 is
+`SRP-WiFi` and profile 1 is `Guest`; the board connected to profile 0 at
+`10.0.0.110`.
+
+SSH inbound/outbound support, SCP/SFTP interoperability, signed bundles, and
+production OTA are not part of this stable baseline.
 
 The implementation plans are local-only and ignored: `docs/PLAN.md`,
 `docs/SHELL_PLAN.md`, and `docs/NEXT_PLAN.md`. This keeps machine-specific
@@ -17,6 +27,9 @@ workflow notes out of clones. The source architecture is documented in
 - 32 MB Flash
 - 16 MB PSRAM
 - Onboard RGB LED on GPIO38 for the user's board revision
+
+The onboard LED is an addressable RGB pixel. The `led-blink` app uses the
+Arduino RGB LED API rather than treating GPIO38 as a normal digital output.
 
 ## Windows command-line setup
 
@@ -136,6 +149,11 @@ device-info
 uptime
 heap
 wifi-status
+wifi-profiles
+app-list
+app-run led-blink
+app-status
+app-stop led-blink
 ```
 
 ## Arduino IDE alternative
@@ -149,12 +167,15 @@ Select:
 - PSRAM: `OPI PSRAM`
 - Port: `COM4`
 
-The serial shell is intentionally transport-independent in spirit. SSH will later use the same command dispatcher.
+The command core is transport-neutral, but the stable baseline exposes it over
+UART only. SSH uses the same dispatcher in experimental ESP-IDF work and is not
+covered by the baseline acceptance workflow.
 
-### Provisioning live SSH
+### Experimental SSH provisioning
 
-Before flashing the ESP-IDF SSH image, provision Wi-Fi and authentication into
-the shared NVS namespace through the Arduino firmware on COM4:
+If you are explicitly testing the experimental ESP-IDF SSH image, provision Wi-Fi and authentication into
+the shared NVS namespace through the Arduino firmware on COM4. This is separate
+from the stable UART-only baseline:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
