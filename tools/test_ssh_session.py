@@ -106,6 +106,9 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("separate strong password", script)
         self.assertIn("Start-Process", script)
         self.assertIn('wifi profile accepted and persisted', script)
+        self.assertIn('Read-Host -Prompt $Prompt -AsSecureString', script)
+        self.assertIn('if ([string]::IsNullOrWhiteSpace($WifiPassword))', script)
+        self.assertIn('if ([string]::IsNullOrWhiteSpace($SshPassword))', script)
 
 
 if __name__ == "__main__":

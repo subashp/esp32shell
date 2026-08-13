@@ -3,13 +3,32 @@ param(
     [string]$Port = "COM4",
     [int]$BaudRate = 115200,
     [Parameter(Mandatory = $true)][string]$WifiSsid,
-    [Parameter(Mandatory = $true)][string]$WifiPassword,
+    [string]$WifiPassword = "",
     [Parameter(Mandatory = $true)][string]$SshUsername,
-    [Parameter(Mandatory = $true)][string]$SshPassword,
+    [string]$SshPassword = "",
     [string]$OpenSslPath = "openssl"
 )
 
 $ErrorActionPreference = "Stop"
+
+function Read-SecretText {
+    param([string]$Prompt)
+    $secure = Read-Host -Prompt $Prompt -AsSecureString
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($WifiPassword)) {
+    $WifiPassword = Read-SecretText "Wi-Fi password"
+}
+if ([string]::IsNullOrWhiteSpace($SshPassword)) {
+    $SshPassword = Read-SecretText "SSH password"
+}
 if ($SshPassword.Length -lt 12 -or $SshPassword -cnotmatch '[A-Z]' -or
     $SshPassword -cnotmatch '[a-z]' -or $SshPassword -cnotmatch '\d') {
     throw "SSH password must be at least 12 characters and contain upper, lower, and digit characters."
