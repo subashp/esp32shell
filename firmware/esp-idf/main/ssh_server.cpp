@@ -102,9 +102,16 @@ void close_session(WOLFSSH* ssh, int fd) {
   if (fd >= 0) close(fd);
 }
 
-int shell_request(WOLFSSH_CHANNEL* channel, void*) {
+struct ShellRequestState {
+  bool accepted = false;
+};
+
+int shell_request(WOLFSSH_CHANNEL* channel, void* context) {
   if (channel == nullptr) return WS_BAD_ARGUMENT;
   (void)channel;
+  auto* state = static_cast<ShellRequestState*>(context);
+  if (state == nullptr) return WS_BAD_ARGUMENT;
+  state->accepted = true;
   ESP_LOGI(kTag, "SSH shell channel request accepted");
   return WS_SUCCESS;
 }
@@ -127,22 +134,29 @@ void serve_shell(WOLFSSH* ssh) {
   esp32shell::CommandCore core;
   esp32shell_idf::CommandServices services;
   SshOutput output(ssh);
+  ShellRequestState requestState;
+  wolfSSH_SetChannelReqCtx(ssh, &requestState);
+  // Authentication/channel open completes before interactive requests arrive.
+  // Keep servicing wolfSSH until the shell callback has accepted the request;
+  // one worker pass is insufficient because Windows sends pty-req and shell
+  // as separate channel requests.
+  while (!requestState.accepted) {
+    const int channelResult = wolfSSH_worker(ssh, nullptr);
+    if (channelResult != WS_SUCCESS && channelResult != WS_CHAN_RXD &&
+        channelResult != WS_WANT_READ && channelResult != WS_WANT_WRITE) {
+      ESP_LOGW(kTag, "SSH shell channel setup failed (%d)", channelResult);
+      return;
+    }
+  }
   output.line("esp32shell ssh shell");
   output.line("Type 'help' for commands.");
-  // Authentication/channel open completes before interactive shell requests
-  // arrive. Service that request once so wolfSSH sends its success reply and
-  // leaves any already-buffered channel data available to stream_read().
-  const int channelResult = wolfSSH_worker(ssh, nullptr);
-  if (channelResult != WS_SUCCESS && channelResult != WS_CHAN_RXD &&
-      channelResult != WS_WANT_READ && channelResult != WS_WANT_WRITE) {
-    ESP_LOGW(kTag, "SSH shell channel setup failed (%d)", channelResult);
-    return;
-  }
+  output.line("esp32shell>");
   char line[esp32shell::CommandCore::kMaxCommandLength + 1] = {};
   size_t used = 0;
   uint8_t input[64] = {};
   while (true) {
     const int received = wolfSSH_stream_read(ssh, input, sizeof(input));
+    if (received == WS_WANT_READ || received == WS_WANT_WRITE) continue;
     if (received <= 0) break;
     for (int i = 0; i < received; ++i) {
       const char ch = static_cast<char>(input[i]);

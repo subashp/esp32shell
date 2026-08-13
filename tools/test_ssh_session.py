@@ -95,6 +95,10 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("int shell_request(WOLFSSH_CHANNEL* channel", source)
         self.assertNotIn("wolfSSH_ChannelIsPty", source)
         self.assertIn("const int channelResult = wolfSSH_worker(ssh, nullptr)", source)
+        self.assertIn("struct ShellRequestState", source)
+        self.assertIn("wolfSSH_SetChannelReqCtx(ssh, &requestState)", source)
+        self.assertIn("while (!requestState.accepted)", source)
+        self.assertIn('output.line("esp32shell>")', source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
