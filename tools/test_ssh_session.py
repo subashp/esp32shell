@@ -95,9 +95,9 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("int shell_request(WOLFSSH_CHANNEL* channel", source)
         self.assertNotIn("wolfSSH_ChannelIsPty", source)
         self.assertIn("const int channelResult = wolfSSH_worker(ssh, nullptr)", source)
-        self.assertIn("struct ShellRequestState", source)
-        self.assertIn("wolfSSH_SetChannelReqCtx(ssh, &requestState)", source)
-        self.assertIn("while (!requestState.accepted)", source)
+        self.assertIn("static volatile bool g_shellRequestAccepted = false", source)
+        self.assertIn("g_shellRequestAccepted = true", source)
+        self.assertIn("while (!g_shellRequestAccepted)", source)
         self.assertIn('output.line("esp32shell>")', source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):

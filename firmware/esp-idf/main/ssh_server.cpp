@@ -102,16 +102,12 @@ void close_session(WOLFSSH* ssh, int fd) {
   if (fd >= 0) close(fd);
 }
 
-struct ShellRequestState {
-  bool accepted = false;
-};
+static volatile bool g_shellRequestAccepted = false;
 
-int shell_request(WOLFSSH_CHANNEL* channel, void* context) {
+int shell_request(WOLFSSH_CHANNEL* channel, void*) {
   if (channel == nullptr) return WS_BAD_ARGUMENT;
   (void)channel;
-  auto* state = static_cast<ShellRequestState*>(context);
-  if (state == nullptr) return WS_BAD_ARGUMENT;
-  state->accepted = true;
+  g_shellRequestAccepted = true;
   ESP_LOGI(kTag, "SSH shell channel request accepted");
   return WS_SUCCESS;
 }
@@ -134,13 +130,12 @@ void serve_shell(WOLFSSH* ssh) {
   esp32shell::CommandCore core;
   esp32shell_idf::CommandServices services;
   SshOutput output(ssh);
-  ShellRequestState requestState;
-  wolfSSH_SetChannelReqCtx(ssh, &requestState);
+  g_shellRequestAccepted = false;
   // Authentication/channel open completes before interactive requests arrive.
   // Keep servicing wolfSSH until the shell callback has accepted the request;
   // one worker pass is insufficient because Windows sends pty-req and shell
   // as separate channel requests.
-  while (!requestState.accepted) {
+  while (!g_shellRequestAccepted) {
     const int channelResult = wolfSSH_worker(ssh, nullptr);
     if (channelResult != WS_SUCCESS && channelResult != WS_CHAN_RXD &&
         channelResult != WS_WANT_READ && channelResult != WS_WANT_WRITE) {
