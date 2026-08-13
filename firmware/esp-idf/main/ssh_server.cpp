@@ -119,8 +119,17 @@ class SshOutput final : public esp32shell::CommandOutput {
     if (text == nullptr) return;
     char buffer[esp32shell::CommandCore::kMaxCommandLength + 3] = {};
     std::snprintf(buffer, sizeof(buffer), "%s\r\n", text);
-    wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer),
-                        static_cast<word32>(std::strlen(buffer)));
+    const word32 length = static_cast<word32>(std::strlen(buffer));
+    for (int attempt = 0; attempt < 5; ++attempt) {
+      const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer), length);
+      if (sent == static_cast<int>(length)) return;
+      if (sent != WS_WANT_WRITE && sent != WS_WINDOW_FULL) {
+        ESP_LOGW(kTag, "SSH shell output failed (%d, attempt=%d)", sent, attempt + 1);
+        return;
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    ESP_LOGW(kTag, "SSH shell output remained back-pressured");
   }
  private:
   WOLFSSH* ssh_;

@@ -99,6 +99,9 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("g_shellRequestAccepted = true", source)
         self.assertIn("while (!g_shellRequestAccepted)", source)
         self.assertIn('output.line("esp32shell>")', source)
+        self.assertIn("for (int attempt = 0; attempt < 5; ++attempt)", source)
+        self.assertIn("SSH shell output failed", source)
+        self.assertIn("WS_WINDOW_FULL", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
