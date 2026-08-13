@@ -290,9 +290,9 @@ void ssh_server_task(void*) {
       const int error = wolfSSH_get_error(ssh);
       if (accepted == WS_SUCCESS || accepted == WS_SFTP_COMPLETE) break;
       if (accepted == WS_WANT_READ || accepted == WS_WANT_WRITE ||
-          accepted == WS_CHAN_RXD || accepted == WS_AUTH_PENDING ||
+          accepted == WS_AUTH_PENDING ||
           error == WS_WANT_READ || error == WS_WANT_WRITE ||
-          error == WS_CHAN_RXD || error == WS_AUTH_PENDING) {
+          error == WS_AUTH_PENDING) {
         if (handshakeAttempts == 0 || handshakeAttempts % 25 == 0) {
           ESP_LOGI(kTag, "SSH handshake pending result=%d error=%d attempt=%d",
                    accepted, error, handshakeAttempts + 1);

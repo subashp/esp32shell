@@ -102,6 +102,8 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("for (; handshakeAttempts < 300; ++handshakeAttempts)", source)
         self.assertIn("accepted == WS_AUTH_PENDING", source)
         self.assertIn("error == WS_AUTH_PENDING", source)
+        self.assertNotIn("accepted == WS_CHAN_RXD || accepted == WS_AUTH_PENDING", source)
+        self.assertNotIn("error == WS_CHAN_RXD || error == WS_AUTH_PENDING", source)
         self.assertIn("vTaskDelay(pdMS_TO_TICKS(10))", source)
         self.assertNotIn("SshOutput output(ssh);\n  g_shellRequestAccepted = false;", source)
         self.assertIn('output.line("esp32shell>")', source)
