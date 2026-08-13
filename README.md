@@ -9,9 +9,9 @@ Stable baseline: `stable-basic-shell-2026-08-12` (commit `71e8166`). The
 firmware builds and has been flashed from Windows using Arduino CLI on `COM4`.
 The baseline provides a responsive UART prompt, persisted dual-profile Wi-Fi,
 basic app lifecycle commands, diagnostics, storage/configuration commands, and
-addressable RGB LED blinking. In the verified hardware state, profile 0 is
-`SRP-WiFi` and profile 1 is `Guest`; the board connected to profile 0 at
-`10.0.0.110`.
+addressable RGB LED blinking. Wi-Fi credentials and assigned IP addresses are
+intentionally omitted from this document; configure them only through the
+ignored local PowerShell data file or directly over UART.
 
 SSH inbound/outbound support, SCP/SFTP interoperability, signed bundles, and
 production OTA are not part of this stable baseline.
@@ -179,7 +179,7 @@ from the stable UART-only baseline:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
-  -Port COM4 -WifiSsid 'SRP-WiFi' -WifiPassword '<wifi-password>' `
+  -Port COM4 -WifiSsid '<wifi-ssid>' -WifiPassword '<wifi-password>' `
   -SshUsername 'esp32shell' -SshPassword '<separate-strong-ssh-password>'
 ```
 

@@ -20,7 +20,7 @@ Provision the values over the Arduino UART before flashing the ESP-IDF image:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
   -Port COM4 `
-  -WifiSsid 'SRP-WiFi' `
+  -WifiSsid '<wifi-ssid>' `
   -WifiPassword '<wifi-password>' `
   -SshUsername 'esp32shell' `
   -SshPassword '<separate-strong-ssh-password>'
@@ -40,7 +40,9 @@ Live SFTP interoperability, persistence, and signed bundle execution still
 require flashing this ESP-IDF image, provisioning a valid ASN.1 host private key
 and password digest in NVS, and completing a Wi-Fi acceptance run.
 
-Hardware status (COM4, 10.0.0.110): password authentication, SFTP subsystem
-negotiation, `/littlefs` as the remote working directory, and directory listing
-have been verified. The current upload/download round-trip still closes the
-connection during transfer and remains an open interoperability defect.
+Live hardware validation has confirmed password authentication, SFTP subsystem
+negotiation, `/littlefs` as the remote working directory, and directory listing.
+The current upload/download round-trip still closes the connection during
+transfer and remains an open interoperability defect. Device ports, SSIDs,
+addresses, credentials, and host keys must be supplied locally and must not be
+written into tracked documentation.
