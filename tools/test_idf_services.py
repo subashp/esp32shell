@@ -42,6 +42,11 @@ class EspIdfServiceContractTests(unittest.TestCase):
             self.assertIn(symbol, self.services)
         self.assertNotIn("nvs_erase_all", self.services)
 
+    def test_app_runtime_has_resource_limits_and_supervision(self):
+        for symbol in ("kMinimumFreeHeap", "kMinimumStackWords", "kMaximumRestarts",
+                       "uxTaskGetStackHighWaterMark", "supervisorThunk", "heartbeat timeout"):
+            self.assertIn(symbol, self.app if symbol in ("supervisorThunk", "heartbeat timeout") else (self.services + self.app))
+
 
 if __name__ == "__main__":
     unittest.main()

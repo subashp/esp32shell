@@ -89,6 +89,11 @@ bool safe_name(const char* name) {
     if (!(std::isalnum(static_cast<unsigned char>(*p)) || *p == '-' || *p == '_')) return false;
   return true;
 }
+
+class NullOutput final : public esp32shell::CommandOutput {
+ public:
+  void line(const char*) override {}
+};
 }
 
 namespace esp32shell_idf {
@@ -97,6 +102,7 @@ AppRuntime::AppRuntime() {
   std::strcpy(apps_[0].name, "diagnostics"); apps_[0].builtin = true; apps_[0].state = State::Stopped; apps_[0].pin = -1; apps_[0].periodMs = 1000;
   std::strcpy(apps_[1].name, "led-blink"); apps_[1].builtin = true; apps_[1].state = State::Stopped; apps_[1].pin = 38; apps_[1].periodMs = 500;
   appCount_ = 2;
+  xTaskCreate(supervisorThunk, "app-supervisor", 3072, this, 2, &supervisorTask_);
 }
 
 const char* AppRuntime::stateName(State state) {
@@ -121,7 +127,7 @@ AppRuntime::AppRecord* AppRuntime::findOrCreateSigned(const char* name) {
   AppRecord* app = &apps_[appCount_++];
   std::strncpy(app->name, name, sizeof(app->name) - 1); app->name[sizeof(app->name) - 1] = '\0';
   app->builtin = false; app->state = State::Stopped; app->task = nullptr; app->pin = 38;
-  app->periodMs = 500; app->failure[0] = '\0';
+  app->periodMs = 500; app->failure[0] = '\0'; app->heartbeat = 0; app->stackWatermark = 0; app->restartCount = 0;
   return app;
 }
 
@@ -164,11 +170,15 @@ bool AppRuntime::loadAndVerify(const char* name, uint8_t** payload, size_t* payl
 bool AppRuntime::start(AppRecord* app, esp32shell::CommandOutput& output) {
   if (app == nullptr) { output.line("error: app is unavailable"); return false; }
   if (app->task != nullptr) { output.line("error: app is already running"); return false; }
+  if (esp_get_free_heap_size() < kMinimumFreeHeap) {
+    std::strncpy(app->failure, "insufficient heap", sizeof(app->failure) - 1);
+    app->state = State::Failed; output.line("error: app resource limit reached"); return false;
+  }
   if (xTaskCreate(taskThunk, app->name, kStackBytes, app, 1, &app->task) != pdPASS) {
     app->state = State::Failed; std::strncpy(app->failure, "task allocation failed", sizeof(app->failure) - 1);
     output.line("error: app task could not start"); return false;
   }
-  app->state = State::Running; app->failure[0] = '\0';
+  app->state = State::Running; app->failure[0] = '\0'; app->heartbeat = xTaskGetTickCount();
   char line[64]; std::snprintf(line, sizeof(line), "app-started=%s", app->name); output.line(line); return true;
 }
 
@@ -197,9 +207,9 @@ void AppRuntime::status(esp32shell::CommandOutput& output) {
   for (size_t i = 0; i < appCount_; ++i) {
     char line[112];
     if (apps_[i].state == State::Failed)
-      std::snprintf(line, sizeof(line), "app=%s state=failed reason=%s", apps_[i].name, apps_[i].failure);
+      std::snprintf(line, sizeof(line), "app=%s state=failed reason=%s restarts=%u", apps_[i].name, apps_[i].failure, apps_[i].restartCount);
     else
-      std::snprintf(line, sizeof(line), "app=%s state=%s", apps_[i].name, stateName(apps_[i].state));
+      std::snprintf(line, sizeof(line), "app=%s state=%s stack_free=%u restarts=%u", apps_[i].name, stateName(apps_[i].state), static_cast<unsigned>(apps_[i].stackWatermark), apps_[i].restartCount);
     output.line(line);
   }
 }
@@ -209,6 +219,15 @@ void AppRuntime::taskThunk(void* context) {
   // The supervisor is process-lifetime storage; this task intentionally does
   // not reference an SSH session or CommandServices instance.
   for (;;) {
+    app->heartbeat = xTaskGetTickCount();
+    app->stackWatermark = uxTaskGetStackHighWaterMark(nullptr);
+    if (app->stackWatermark < kMinimumStackWords) {
+      std::strncpy(app->failure, "stack resource limit", sizeof(app->failure) - 1);
+      app->state = State::Failed;
+      app->task = nullptr;
+      vTaskDelete(nullptr);
+      return;
+    }
     if (app->pin >= 0) {
       static bool ledOn = false;
       ledOn = !ledOn;
@@ -218,6 +237,35 @@ void AppRuntime::taskThunk(void* context) {
                static_cast<unsigned long>(esp_get_free_heap_size()));
     }
     vTaskDelay(pdMS_TO_TICKS(app->periodMs));
+  }
+}
+
+void AppRuntime::supervisorThunk(void* context) {
+  auto* runtime = static_cast<AppRuntime*>(context);
+  for (;;) {
+    runtime->supervise();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+void AppRuntime::supervise() {
+  const TickType_t now = xTaskGetTickCount();
+  for (size_t i = 0; i < appCount_; ++i) {
+    AppRecord& app = apps_[i];
+    if (app.state != State::Running || app.task == nullptr) continue;
+    const TickType_t timeout = pdMS_TO_TICKS(static_cast<uint32_t>(app.periodMs) * 4U);
+    if (now - app.heartbeat <= timeout) continue;
+    vTaskDelete(app.task);
+    app.task = nullptr;
+    if (app.restartCount >= kMaximumRestarts) {
+      app.state = State::Failed;
+      std::strncpy(app.failure, "heartbeat timeout", sizeof(app.failure) - 1);
+      continue;
+    }
+    ++app.restartCount;
+    NullOutput ignored;
+    start(&app, ignored);
+    ESP_LOGW(kTag, "restarted stalled app %s (%u/%u)", app.name, app.restartCount, kMaximumRestarts);
   }
 }
 

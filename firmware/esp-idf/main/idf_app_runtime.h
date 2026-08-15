@@ -27,11 +27,19 @@ class AppRuntime {
     int pin;
     int periodMs;
     char failure[48];
+    volatile TickType_t heartbeat;
+    UBaseType_t stackWatermark;
+    unsigned restartCount;
   };
 
   static constexpr size_t kMaxApps = 4;
   static constexpr size_t kStackBytes = 3072;
+  static constexpr size_t kMinimumFreeHeap = 16 * 1024;
+  static constexpr UBaseType_t kMinimumStackWords = 256;
+  static constexpr unsigned kMaximumRestarts = 3;
   static void taskThunk(void* context);
+  static void supervisorThunk(void* context);
+  void supervise();
   bool start(AppRecord* app, esp32shell::CommandOutput& output);
   AppRecord* find(const char* name);
   AppRecord* findOrCreateSigned(const char* name);
@@ -41,6 +49,7 @@ class AppRuntime {
 
   AppRecord apps_[kMaxApps]{};
   size_t appCount_ = 0;
+  TaskHandle_t supervisorTask_ = nullptr;
 };
 
 }  // namespace esp32shell_idf
