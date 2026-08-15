@@ -15,10 +15,12 @@ class IdWorkflowContractTests(unittest.TestCase):
         self.assertIn("flash", script)
         self.assertNotIn("erase-flash", script)
 
-    def test_readme_uses_wrapper_for_unactivated_powershell(self):
+    def test_readme_documents_stable_uart_workflow_only(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("flash_espidf_ssh.cmd", readme)
-        self.assertIn("does not persist into the", readme)
+        self.assertIn("build_flash_monitor.cmd", readme)
+        self.assertIn("arduino-cli monitor", readme)
+        self.assertNotIn("wolfSSH", readme)
+        self.assertNotIn("flash_espidf_ssh.cmd", readme)
 
 
 if __name__ == "__main__":
