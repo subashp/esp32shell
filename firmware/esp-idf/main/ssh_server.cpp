@@ -96,7 +96,10 @@ int user_auth(byte authType, WS_UserAuthData* data, void* context) {
 
 void close_session(WOLFSSH* ssh, int fd) {
   if (ssh != nullptr) {
-    wolfSSH_shutdown(ssh);
+    ESP_LOGI(kTag, "SSH session closing fd=%d", fd);
+    const int shutdownResult = wolfSSH_shutdown(ssh);
+    ESP_LOGI(kTag, "SSH shutdown result=%d error=%d", shutdownResult,
+             wolfSSH_get_error(ssh));
     wolfSSH_free(ssh);
   }
   if (fd >= 0) close(fd);
@@ -105,7 +108,10 @@ void close_session(WOLFSSH* ssh, int fd) {
 static volatile bool g_shellRequestAccepted = false;
 
 int shell_request(WOLFSSH_CHANNEL* channel, void*) {
-  if (channel == nullptr) return WS_BAD_ARGUMENT;
+  if (channel == nullptr) {
+    ESP_LOGW(kTag, "SSH shell channel request missing channel");
+    return WS_BAD_ARGUMENT;
+  }
   (void)channel;
   g_shellRequestAccepted = true;
   ESP_LOGI(kTag, "SSH shell channel request accepted");
@@ -122,7 +128,15 @@ class SshOutput final : public esp32shell::CommandOutput {
     const word32 length = static_cast<word32>(std::strlen(buffer));
     for (int attempt = 0; attempt < 5; ++attempt) {
       const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer), length);
-      if (sent == static_cast<int>(length)) return;
+      if (sent == static_cast<int>(length)) {
+        if (linesSent_ < 3) {
+          ESP_LOGI(kTag, "SSH shell output sent line=%u bytes=%u",
+                   static_cast<unsigned>(linesSent_ + 1),
+                   static_cast<unsigned>(length));
+        }
+        ++linesSent_;
+        return;
+      }
       if (sent != WS_WANT_WRITE && sent != WS_WINDOW_FULL) {
         ESP_LOGW(kTag, "SSH shell output failed (%d, attempt=%d)", sent, attempt + 1);
         return;
@@ -133,24 +147,30 @@ class SshOutput final : public esp32shell::CommandOutput {
   }
  private:
   WOLFSSH* ssh_;
+  unsigned linesSent_ = 0;
 };
 
-void serve_shell(WOLFSSH* ssh) {
+int serve_shell(WOLFSSH* ssh) {
   esp32shell::CommandCore core;
   esp32shell_idf::CommandServices services;
   SshOutput output(ssh);
+  ESP_LOGI(kTag, "SSH shell service entered fd=%d", wolfSSH_get_fd(ssh));
   // Authentication/channel open completes before interactive requests arrive.
   // Keep servicing wolfSSH until the shell callback has accepted the request;
   // one worker pass is insufficient because Windows sends pty-req and shell
   // as separate channel requests.
   while (!g_shellRequestAccepted) {
     const int channelResult = wolfSSH_worker(ssh, nullptr);
+    const int channelError = wolfSSH_get_error(ssh);
+    ESP_LOGI(kTag, "SSH shell worker result=%d error=%d request=%d",
+             channelResult, channelError, g_shellRequestAccepted ? 1 : 0);
     if (channelResult != WS_SUCCESS && channelResult != WS_CHAN_RXD &&
         channelResult != WS_WANT_READ && channelResult != WS_WANT_WRITE) {
       ESP_LOGW(kTag, "SSH shell channel setup failed (%d)", channelResult);
-      return;
+      return channelResult;
     }
   }
+  ESP_LOGI(kTag, "SSH shell request state accepted; sending initial prompt");
   output.line("esp32shell ssh shell");
   output.line("Type 'help' for commands.");
   output.line("esp32shell>");
@@ -160,12 +180,19 @@ void serve_shell(WOLFSSH* ssh) {
   while (true) {
     const int received = wolfSSH_stream_read(ssh, input, sizeof(input));
     if (received == WS_WANT_READ || received == WS_WANT_WRITE) continue;
-    if (received <= 0) break;
+    if (received <= 0) {
+      ESP_LOGI(kTag, "SSH shell read ended result=%d error=%d", received,
+               wolfSSH_get_error(ssh));
+      return received;
+    }
     for (int i = 0; i < received; ++i) {
       const char ch = static_cast<char>(input[i]);
       if (ch == '\r' || ch == '\n') {
         line[used] = '\0';
-        if (core.dispatch(line, output, services) == esp32shell::CommandStatus::SessionClosed) return;
+        if (core.dispatch(line, output, services) == esp32shell::CommandStatus::SessionClosed) {
+          ESP_LOGI(kTag, "SSH shell requested session close");
+          return WS_CHANNEL_CLOSED;
+        }
         used = 0;
         output.line("esp32shell>");
       } else if (ch == '\b' || ch == 0x7f) {
@@ -315,8 +342,9 @@ void ssh_server_task(void*) {
       continue;
     }
     ESP_LOGI(kTag, "SSH client authenticated");
-    serve_shell(ssh);
-    ESP_LOGI(kTag, "SSH shell session ended");
+    const int shellResult = serve_shell(ssh);
+    ESP_LOGI(kTag, "SSH shell session ended result=%d error=%d", shellResult,
+             wolfSSH_get_error(ssh));
     close_session(ssh, client);
   }
   close(listener);

@@ -112,7 +112,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("WS_WINDOW_FULL", source)
         self.assertIn("SSH TCP client accepted", source)
         self.assertIn("SSH handshake result=%d error=%d attempts=%d", source)
-        self.assertIn("SSH shell session ended", source)
+        self.assertIn("SSH shell service entered fd=%d", source)
+        self.assertIn("SSH shell worker result=%d error=%d request=%d", source)
+        self.assertIn("SSH shell request state accepted; sending initial prompt", source)
+        self.assertIn("SSH shell output sent line=%u bytes=%u", source)
+        self.assertIn("SSH shell read ended result=%d error=%d", source)
+        self.assertIn("SSH shell session ended result=%d error=%d", source)
+        self.assertIn("SSH shutdown result=%d error=%d", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
