@@ -25,7 +25,7 @@ class EspIdfLogBufferContractTests(unittest.TestCase):
         self.assertIn("previousVprintf(format, arguments)", self.source)
         self.assertIn("void log_dump", self.source)
         self.assertIn("log_dump(output)", self.services)
-        self.assertIn('"dmesg"', self.core)
+        self.assertNotIn('"dmesg"', self.core)
 
 
 if __name__ == "__main__":
