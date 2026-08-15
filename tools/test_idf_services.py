@@ -18,13 +18,18 @@ class EspIdfServiceContractTests(unittest.TestCase):
             "nvs_open",
             "nvs_set_str",
             "esp_reset_reason",
-            "uxTaskGetNumberOfTasks",
             "gpio_set_level",
             "opendir",
             "fopen",
         ):
             self.assertIn(symbol, self.services)
         self.assertNotIn("service unavailable in ESP-IDF target", self.services)
+
+    def test_diagnostics_include_hardware_and_task_details(self):
+        for symbol in ("esp_chip_info", "esp_flash_get_size", "esp_psram_get_size",
+            "esp_get_minimum_free_heap_size", "uxTaskGetSystemState",
+                       "usStackHighWaterMark"):
+            self.assertIn(symbol, self.services)
 
     def test_apps_are_transport_independent_and_session_stable(self):
         self.assertIn("static AppRuntime& apps()", self.services)

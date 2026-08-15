@@ -6,13 +6,16 @@
 
 #include "driver/gpio.h"
 #include "esp_heap_caps.h"
+#include "esp_chip_info.h"
 #include "esp_netif.h"
+#include "esp_psram.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "esp_flash.h"
 
 #include "idf_app_runtime.h"
 #include "idf_log_buffer.h"
@@ -63,7 +66,19 @@ class CommandServices final : public esp32shell::DeviceServices {
   }
 
  public:
-  void deviceInfo(esp32shell::CommandOutput& output) override { output.line("target=esp32s3"); }
+  void deviceInfo(esp32shell::CommandOutput& output) override {
+    esp_chip_info_t chip{};
+    esp_chip_info(&chip);
+    char line[128];
+    std::snprintf(line, sizeof(line), "chip=%s cores=%d revision=%d", CONFIG_IDF_TARGET, chip.cores, chip.revision);
+    output.line(line);
+    uint32_t flashSize = 0;
+    esp_flash_get_size(esp_flash_default_chip, &flashSize);
+    std::snprintf(line, sizeof(line), "flash_bytes=%lu psram_bytes=%lu idf=%s",
+                  static_cast<unsigned long>(flashSize),
+                  static_cast<unsigned long>(esp_psram_get_size()), esp_get_idf_version());
+    output.line(line);
+  }
   void uptime(esp32shell::CommandOutput& output) override {
     char line[48];
     std::snprintf(line, sizeof(line), "uptime_ms=%lu",
@@ -72,8 +87,10 @@ class CommandServices final : public esp32shell::DeviceServices {
   }
   void heap(esp32shell::CommandOutput& output) override {
     char line[64];
-    std::snprintf(line, sizeof(line), "free_heap=%lu",
-                  static_cast<unsigned long>(esp_get_free_heap_size()));
+    std::snprintf(line, sizeof(line), "free_heap=%lu min_free_heap=%lu psram_free=%lu",
+                  static_cast<unsigned long>(esp_get_free_heap_size()),
+                  static_cast<unsigned long>(esp_get_minimum_free_heap_size()),
+                  static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)));
     output.line(line);
   }
   void reboot(esp32shell::CommandOutput& output) override { output.line("rebooting"); esp_restart(); }
@@ -212,7 +229,20 @@ class CommandServices final : public esp32shell::DeviceServices {
 
   void psram(esp32shell::CommandOutput& output) override { char line[64]; std::snprintf(line, sizeof(line), "psram_free=%lu", static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM))); output.line(line); }
   void resetReason(esp32shell::CommandOutput& output) override { char line[64]; std::snprintf(line, sizeof(line), "reset-reason=%d", static_cast<int>(esp_reset_reason())); output.line(line); }
-  void tasks(esp32shell::CommandOutput& output) override { char line[64]; std::snprintf(line, sizeof(line), "tasks=%u", static_cast<unsigned>(uxTaskGetNumberOfTasks())); output.line(line); }
+  void tasks(esp32shell::CommandOutput& output) override {
+    TaskStatus_t statuses[24] = {};
+    uint32_t totalRuntime = 0;
+    const UBaseType_t count = uxTaskGetSystemState(statuses, 24, &totalRuntime);
+    char line[96];
+    std::snprintf(line, sizeof(line), "tasks=%u", static_cast<unsigned>(count)); output.line(line);
+    for (UBaseType_t index = 0; index < count; ++index) {
+      std::snprintf(line, sizeof(line), "%s stack=%u state=%u",
+                    statuses[index].pcTaskName,
+                    static_cast<unsigned>(statuses[index].usStackHighWaterMark),
+                    static_cast<unsigned>(statuses[index].eCurrentState));
+      output.line(line);
+    }
+  }
   void gpioModes(esp32shell::CommandOutput& output) override { output.line("gpio=allowlisted pins=38"); }
   void gpioRead(const char* arguments, esp32shell::CommandOutput& output) override { int pin = -1; if (!parsePin(arguments, &pin)) { output.line("error: usage gpio-read <allowlisted-pin>"); return; } char line[48]; std::snprintf(line, sizeof(line), "gpio=%d value=%d", pin, gpio_get_level(static_cast<gpio_num_t>(pin))); output.line(line); }
   bool gpioWrite(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr) { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } const char* separator = std::strchr(arguments, ' '); int pin = -1; char pinText[8] = {}; if (!separator || static_cast<size_t>(separator - arguments) >= sizeof(pinText) || (separator[1] != '0' && separator[1] != '1') || separator[2] != '\0') { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } std::memcpy(pinText, arguments, static_cast<size_t>(separator - arguments)); if (!parsePin(pinText, &pin)) { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } gpio_set_direction(static_cast<gpio_num_t>(pin), GPIO_MODE_OUTPUT); gpio_set_level(static_cast<gpio_num_t>(pin), separator[1] - '0'); output.line("gpio=updated"); return true; }
