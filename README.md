@@ -117,6 +117,13 @@ The `--board-options` values are important. Without `FlashSize=32M`, Arduino CLI
 
 ### Flash a serial port
 
+Set the port once, replacing `COM4` with the port shown by
+`arduino-cli board list` when necessary:
+
+```powershell
+$port = "COM4"
+```
+
 ```powershell
 arduino-cli board list
 Get-CimInstance Win32_SerialPort |
@@ -124,14 +131,14 @@ Get-CimInstance Win32_SerialPort |
 
 arduino-cli upload `
   --fqbn esp32:esp32:esp32s3 `
-  --port <COM_PORT> `
+  --port $port `
   --input-dir .build\arduino
 ```
 
 Before reflashing after a partition-size error, identify the physical flash size without erasing it:
 
 ```powershell
-esptool --port <COM_PORT> flash-id
+esptool --port $port flash-id
 ```
 
 If `flash-id` reports 4MB, use a 4MB partition scheme or verify the board/module variant. If it reports 32MB, rebuild with `--board-options "FlashSize=32M,PSRAM=opi"` and reflash the bootloader, partition table, and application.
@@ -141,7 +148,7 @@ If the ESP32-S3 does not enumerate, hold `BOOT`, tap `RESET`, release `BOOT`, an
 ### Open the serial shell
 
 ```powershell
-arduino-cli monitor --port <COM_PORT> --config baudrate=115200
+arduino-cli monitor --port $port --config baudrate=115200
 ```
 
 Initial acceptance commands:
@@ -183,7 +190,11 @@ from the stable UART-only baseline:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
-  -Port <COM_PORT> `
+<<<<<<< HEAD
+  -Port COM4 -WifiSsid '<wifi-ssid>' -WifiPassword '<wifi-password>' `
+  -SshUsername 'esp32shell' -SshPassword '<separate-strong-ssh-password>'
+=======
+  -Port $port `
   -WifiSsid '<wifi-ssid>' `
   -SshUsername 'root'
 ```
@@ -195,26 +206,13 @@ echoing the values or placing them in the PowerShell command line:
 Wi-Fi password: *****************
 SSH password: ***************
 Provisioning completed on COM4. The DER host key remains in protected NVS; no key file was kept.
+>>>>>>> c883e0c (Prepare repository for GitHub publication)
 ```
 
 The script creates a temporary 2048-bit RSA DER host key, stores it in NVS,
 and removes the temporary file. Credentials and key material are never stored
 in the repository. Flash the ESP-IDF image without erasing NVS, then monitor
 COM4 for the assigned IP and connect with an SSH/SFTP client on port `22222`.
-
-The ESP-IDF environment activated by a `.cmd` script does not persist into the
-calling PowerShell session. Flash the built SSH image with the repository
-wrapper instead of invoking `idf.py` directly from an unactivated shell:
-
-```powershell
-cd C:\path\to\esp32shell
-.\tools\flash_espidf_ssh.cmd COM4
-```
-
-This flashes the existing `firmware\esp-idf\build` image and preserves NVS;
-it does not erase the provisioned Wi-Fi credentials, SSH password digest, or
-host key. Build first with `.\tools\build_espidf_ssh.cmd` if the image is
-missing or stale.
 
 ### One-command UART workflow
 
@@ -232,7 +230,7 @@ Useful variants:
 .\tools\build_flash_monitor.ps1 -OpenMonitor             # test, then attach interactively
 .\tools\build_flash_monitor.ps1 -SkipUpload -SkipTest     # build and verify only
 .\tools\build_flash_monitor.ps1 -Clean -ResetCliState     # rebuild CLI state if bootstrap state is damaged
-.\tools\build_flash_monitor.ps1 -Port <COM_PORT>          # reuse the build directory
+.\tools\build_flash_monitor.ps1 -Port $port              # reuse the build directory
 .\tools\build_flash_monitor.ps1 -ResetCliState            # repair a stale CLI state directory
 ```
 
