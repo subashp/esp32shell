@@ -3,10 +3,14 @@
 An experimental UART command shell and device toolbox for the ESP32-S3-WROOM-2.
 SSH transport work remains experimental follow-up work.
 
+The `master` branch is the stable UART-first baseline. The `next-plan` branch
+contains ongoing ESP-IDF/wolfSSH work and is not a production SSH release.
+
 ## Current status
 
 Stable baseline: `stable-basic-shell-2026-08-12` (commit `71e8166`). The
-firmware builds and has been flashed from Windows using Arduino CLI on `COM4`.
+firmware builds and can be flashed from Windows using Arduino CLI on a selected
+serial port.
 The baseline provides a responsive UART prompt, persisted dual-profile Wi-Fi,
 basic app lifecycle commands, diagnostics, storage/configuration commands, and
 addressable RGB LED blinking. Wi-Fi credentials and assigned IP addresses are
@@ -70,7 +74,7 @@ run UART acceptance commands, disconnect COM4, and return to PowerShell:
 Set-ExecutionPolicy -Scope Process Bypass
 Copy-Item .\config\esp32shell.local.psd1.example .\config\esp32shell.local.psd1
 # Edit the local file and replace both example SSIDs/passwords.
-.\tools\build_flash_monitor.cmd -Clean -ConfigPath .\config\esp32shell.local.psd1
+.\tools\build_flash_monitor.cmd -Clean -ConfigPath .\config\esp32shell.local.psd1 -Port COM4
 ```
 
 The script uses the required `FlashSize=32M,PSRAM=opi` settings and keeps CLI
@@ -111,7 +115,7 @@ Target configuration:
 
 The `--board-options` values are important. Without `FlashSize=32M`, Arduino CLI defaults this generic board to 4MB and produces a boot image that rejects the 32MB partition table. Confirm the generated `.build\arduino\flash_args` contains `--flash-size 32MB` before flashing.
 
-### Flash COM4
+### Flash a serial port
 
 ```powershell
 arduino-cli board list
@@ -120,14 +124,14 @@ Get-CimInstance Win32_SerialPort |
 
 arduino-cli upload `
   --fqbn esp32:esp32:esp32s3 `
-  --port COM4 `
+  --port <COM_PORT> `
   --input-dir .build\arduino
 ```
 
 Before reflashing after a partition-size error, identify the physical flash size without erasing it:
 
 ```powershell
-esptool --port COM4 flash-id
+esptool --port <COM_PORT> flash-id
 ```
 
 If `flash-id` reports 4MB, use a 4MB partition scheme or verify the board/module variant. If it reports 32MB, rebuild with `--board-options "FlashSize=32M,PSRAM=opi"` and reflash the bootloader, partition table, and application.
@@ -137,7 +141,7 @@ If the ESP32-S3 does not enumerate, hold `BOOT`, tap `RESET`, release `BOOT`, an
 ### Open the serial shell
 
 ```powershell
-arduino-cli monitor --port COM4 --config baudrate=115200
+arduino-cli monitor --port <COM_PORT> --config baudrate=115200
 ```
 
 Initial acceptance commands:
@@ -179,8 +183,23 @@ from the stable UART-only baseline:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\provision_ssh.ps1 `
+<<<<<<< HEAD
   -Port COM4 -WifiSsid '<wifi-ssid>' -WifiPassword '<wifi-password>' `
   -SshUsername 'esp32shell' -SshPassword '<separate-strong-ssh-password>'
+=======
+  -Port <COM_PORT> `
+  -WifiSsid '<wifi-ssid>' `
+  -SshUsername 'root'
+```
+
+When password parameters are omitted, the script prompts securely without
+echoing the values or placing them in the PowerShell command line:
+
+```text
+Wi-Fi password: *****************
+SSH password: ***************
+Provisioning completed on COM4. The DER host key remains in protected NVS; no key file was kept.
+>>>>>>> c883e0c (Prepare repository for GitHub publication)
 ```
 
 The script creates a temporary 2048-bit RSA DER host key, stores it in NVS,
@@ -204,7 +223,7 @@ Useful variants:
 .\tools\build_flash_monitor.ps1 -OpenMonitor             # test, then attach interactively
 .\tools\build_flash_monitor.ps1 -SkipUpload -SkipTest     # build and verify only
 .\tools\build_flash_monitor.ps1 -Clean -ResetCliState     # rebuild CLI state if bootstrap state is damaged
-.\tools\build_flash_monitor.ps1 -Port COM4                # reuse the build directory
+.\tools\build_flash_monitor.ps1 -Port <COM_PORT>          # reuse the build directory
 .\tools\build_flash_monitor.ps1 -ResetCliState            # repair a stale CLI state directory
 ```
 

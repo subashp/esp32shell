@@ -1,5 +1,7 @@
 # Arduino and ESP-IDF build output
 build/
+Build/
+build-*/
 firmware/esp-idf/managed_components/
 .build/
 .pio/
@@ -10,6 +12,22 @@ firmware/esp-idf/managed_components/
 *.uf2
 sdkconfig
 sdkconfig.old
+
+# CMake and compiler output
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+*.d
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.pdb
 
 # IDE and machine-local state
 .vscode/
@@ -26,6 +44,12 @@ secrets/
 device-state/
 logs/
 config/*.local.psd1
+
+# Test/tool caches
+.cache/
+Testing/
+__pycache__/
+*.pyc
 
 # Local execution plan
 docs/SHELL_PLAN.md
