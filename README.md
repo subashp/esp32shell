@@ -163,6 +163,29 @@ The `led-blink` app drives the supported addressable RGB LED. Wi-Fi passwords
 and other sensitive values are stored on the device or in ignored local
 configuration and are not part of the repository documentation.
 
+### First-time ESP-IDF/SSH onboarding
+
+The ESP-IDF image intentionally uses UART for logs only; it cannot receive
+initial credentials through a UART shell. Run the onboarding workflow once
+from a fresh checkout. It temporarily flashes the Arduino bootstrap image,
+uses COM4 (or the selected port) to provision Wi-Fi and SSH credentials, then
+builds and flashes the ESP-IDF image. NVS is preserved when the application
+image is replaced:
+
+```powershell
+Copy-Item .\config\esp32shell.local.psd1.example .\config\esp32shell.local.psd1
+# Edit the ignored file and enter at least one real WifiProfiles entry.
+powershell -ExecutionPolicy Bypass -File .\tools\onboard_espidf.ps1 `
+  -Port COM4 `
+  -ConfigPath .\config\esp32shell.local.psd1
+```
+
+The script prompts for the Wi-Fi password and SSH password; it does not place
+either secret in the command line. After the final flash, watch UART logs for
+the assigned IP, then connect with SSH on port `22222`. If the board is already
+running the ESP-IDF image, use `build_flash_monitor.ps1` once to restore the
+Arduino bootstrap before running the onboarding script.
+
 ### SSH client diagnostics
 
 The experimental SSH workflow uses port `22222`. Keep OpenSSH diagnostic
