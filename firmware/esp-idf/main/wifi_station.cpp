@@ -78,6 +78,14 @@ void wifi_event(void*, esp_event_base_t base, int32_t id, void*) {
   }
 }
 
+void ip_event(void*, esp_event_base_t base, int32_t id, void*) {
+  if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+    connected = true;
+    connecting = false;
+    ESP_LOGI(kTag, "Wi-Fi profile %u connected", activeSlot);
+  }
+}
+
 void wifi_failover_task(void*) {
   for (;;) {
     if (configured && !connected) {
@@ -111,6 +119,7 @@ extern "C" bool esp32shell_wifi_start() {
   wifi_init_config_t initConfig = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&initConfig));
   ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, nullptr));
+  ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event, nullptr));
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_start());
   if (xTaskCreate(wifi_failover_task, "wifi-failover", 3072, nullptr, 4, &failoverTask) != pdPASS) {

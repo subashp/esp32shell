@@ -186,13 +186,13 @@ class CommandServices final : public esp32shell::DeviceServices {
   void configList(esp32shell::CommandOutput& output) override {
     nvs_handle_t handle = 0; if (!openNvs(NVS_READONLY, &handle, output)) return;
     const char* keys[] = {"wifi_ssid", "wifi_password", "wifi_ssid_0", "wifi_password_0",
-                          "wifi_ssid_1", "wifi_password_1", "ssh_username", "ssh_password", "ssh_host_key"};
+                          "wifi_ssid_1", "wifi_password_1", "ssh_username", "ssh_password", "ssh_host_key", "ota_public_key"};
     for (const char* key : keys) {
       char value[2] = {}; size_t length = sizeof(value);
       const bool present = nvs_get_str(handle, key, value, &length) == ESP_OK;
       char line[64];
       std::snprintf(line, sizeof(line), "%s=%s", key,
-                    present ? ((std::strstr(key, "password") != nullptr || std::strcmp(key, "ssh_host_key") == 0) ? "<protected>" : "set") : "unset");
+                    present ? ((std::strstr(key, "password") != nullptr || std::strstr(key, "public_key") != nullptr || std::strcmp(key, "ssh_host_key") == 0) ? "<protected>" : "set") : "unset");
       output.line(line);
     }
     nvs_close(handle);
@@ -200,7 +200,7 @@ class CommandServices final : public esp32shell::DeviceServices {
   void configGet(const char* arguments, esp32shell::CommandOutput& output) override {
     if (arguments == nullptr || arguments[0] == '\0') { output.line("error: usage config-get <key>"); return; }
     nvs_handle_t handle = 0; if (!openNvs(NVS_READONLY, &handle, output)) return;
-    char value[128] = {}; const bool secret = std::strstr(arguments, "password") != nullptr || std::strstr(arguments, "host_key") != nullptr;
+    char value[128] = {}; const bool secret = std::strstr(arguments, "password") != nullptr || std::strstr(arguments, "host_key") != nullptr || std::strstr(arguments, "public_key") != nullptr;
     size_t valueLength = sizeof(value);
     if (secret) output.line("value=<protected>");
     else if (nvs_get_str(handle, arguments, value, &valueLength) == ESP_OK) {
@@ -216,10 +216,25 @@ class CommandServices final : public esp32shell::DeviceServices {
     char key[32] = {}; const size_t keyLength = static_cast<size_t>(separator - arguments);
     if (keyLength >= sizeof(key)) { output.line("error: key is too long"); return false; }
     std::memcpy(key, arguments, keyLength);
-    if (!allowedConfigKey(key)) { output.line("error: key is not allowed"); return false; }
-    const bool secret = std::strstr(key, "password") != nullptr || std::strcmp(key, "ssh_host_key") == 0;
+    if (!allowedConfigKey(key) && std::strcmp(key, "ota_public_key") != 0) { output.line("error: key is not allowed"); return false; }
+    const bool secret = std::strstr(key, "password") != nullptr || std::strstr(key, "public_key") != nullptr || std::strcmp(key, "ssh_host_key") == 0;
     nvs_handle_t handle = 0; if (!openNvs(NVS_READWRITE, &handle, output)) return false;
-    const bool ok = nvs_set_str(handle, key, separator + 1) == ESP_OK && nvs_commit(handle) == ESP_OK; nvs_close(handle);
+    esp_err_t setResult = ESP_OK;
+    if (std::strcmp(key, "ota_public_key") == 0) {
+      uint8_t publicKey[32] = {}; size_t length = 0;
+      const char* hex = separator + 1;
+      if (std::strlen(hex) != 64) { nvs_close(handle); output.line("error: OTA public key must be 32 bytes of hexadecimal data"); return false; }
+      for (size_t i = 0; i < sizeof(publicKey); ++i) {
+        auto nibble = [](char c) -> int { if (c >= '0' && c <= '9') return c - '0'; if (c >= 'a' && c <= 'f') return c - 'a' + 10; if (c >= 'A' && c <= 'F') return c - 'A' + 10; return -1; };
+        const int high = nibble(hex[i * 2]); const int low = nibble(hex[i * 2 + 1]);
+        if (high < 0 || low < 0) { nvs_close(handle); output.line("error: OTA public key must be hexadecimal data"); return false; }
+        publicKey[i] = static_cast<uint8_t>((high << 4) | low);
+      }
+      setResult = nvs_set_blob(handle, key, publicKey, sizeof(publicKey));
+    } else {
+      setResult = nvs_set_str(handle, key, separator + 1);
+    }
+    const bool ok = setResult == ESP_OK && nvs_commit(handle) == ESP_OK; nvs_close(handle);
     output.line(ok ? (secret ? "configuration updated (redacted)" : "configuration updated") : "error: configuration save failed"); return ok;
   }
   bool configClear(const char* arguments, esp32shell::CommandOutput& output) override {

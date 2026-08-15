@@ -30,7 +30,9 @@ class OtaPolicyContractTests(unittest.TestCase):
 
     def test_idf_target_validates_boot_and_reports_real_slots(self):
         source = (ROOT / "firmware/esp-idf/main/idf_ota.cpp").read_text(encoding="utf-8")
-        for symbol in ("esp_ota_mark_app_valid_cancel_rollback", "esp_ota_get_running_partition", "esp_ota_get_boot_partition"):
+        for symbol in ("esp_ota_mark_app_valid_cancel_rollback", "esp_ota_get_running_partition", "esp_ota_get_boot_partition",
+                       "ota_apply_signed_image", "esp_ota_get_next_update_partition", "esp_ota_write",
+                       "esp_ota_set_boot_partition", "wc_ed25519_verify_msg"):
             self.assertIn(symbol, source)
 
 
