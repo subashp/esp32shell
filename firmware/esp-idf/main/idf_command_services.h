@@ -15,6 +15,7 @@
 #include "nvs_flash.h"
 
 #include "idf_app_runtime.h"
+#include "idf_log_buffer.h"
 #include "idf_ota.h"
 #include "../../../arduino/esp32shell/command_core.h"
 
@@ -219,7 +220,8 @@ class CommandServices final : public esp32shell::DeviceServices {
   void gpioModes(esp32shell::CommandOutput& output) override { output.line("gpio=allowlisted pins=38"); }
   void gpioRead(const char* arguments, esp32shell::CommandOutput& output) override { int pin = -1; if (!parsePin(arguments, &pin)) { output.line("error: usage gpio-read <allowlisted-pin>"); return; } char line[48]; std::snprintf(line, sizeof(line), "gpio=%d value=%d", pin, gpio_get_level(static_cast<gpio_num_t>(pin))); output.line(line); }
   bool gpioWrite(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr) { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } const char* separator = std::strchr(arguments, ' '); int pin = -1; char pinText[8] = {}; if (!separator || static_cast<size_t>(separator - arguments) >= sizeof(pinText) || (separator[1] != '0' && separator[1] != '1') || separator[2] != '\0') { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } std::memcpy(pinText, arguments, static_cast<size_t>(separator - arguments)); if (!parsePin(pinText, &pin)) { output.line("error: usage gpio-write <allowlisted-pin> <0|1>"); return false; } gpio_set_direction(static_cast<gpio_num_t>(pin), GPIO_MODE_OUTPUT); gpio_set_level(static_cast<gpio_num_t>(pin), separator[1] - '0'); output.line("gpio=updated"); return true; }
-  void logs(esp32shell::CommandOutput& output) override { output.line("logs=bounded"); output.line("dmesg=available-on-UART"); }
+  void logs(esp32shell::CommandOutput& output) override { esp32shell_idf::log_dump(output); }
+  void dmesg(esp32shell::CommandOutput& output) override { esp32shell_idf::log_dump(output); }
   void otaStatus(esp32shell::CommandOutput& output) override { ota_status(output); }
   void appList(esp32shell::CommandOutput& output) override { apps().list(output); }
   bool appRun(const char* arguments, esp32shell::CommandOutput& output) override { return apps().run(arguments, output); }

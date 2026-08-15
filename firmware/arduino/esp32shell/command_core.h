@@ -39,6 +39,7 @@ class DeviceServices {
   virtual void gpioRead(const char* arguments, CommandOutput& output) = 0;
   virtual bool gpioWrite(const char* arguments, CommandOutput& output) = 0;
   virtual void logs(CommandOutput& output) = 0;
+  virtual void dmesg(CommandOutput& output) = 0;
   virtual void otaStatus(CommandOutput& output) = 0;
   virtual void appList(CommandOutput& output) = 0;
   virtual bool appRun(const char* arguments, CommandOutput& output) = 0;
@@ -127,6 +128,7 @@ class CommandCore {
       return services.gpioWrite(command + 11, output) ? CommandStatus::Ok : CommandStatus::Invalid;
     }
     if (equals(command, length, "logs")) { services.logs(output); return CommandStatus::Ok; }
+    if (equals(command, length, "dmesg")) { services.dmesg(output); return CommandStatus::Ok; }
     if (equals(command, length, "ota-status")) { services.otaStatus(output); return CommandStatus::Ok; }
     if (equals(command, length, "app-list")) { services.appList(output); return CommandStatus::Ok; }
     if (equals(command, length, "app-run")) { output.line("error: usage app-run <name>"); return CommandStatus::Invalid; }
@@ -177,6 +179,7 @@ class CommandCore {
     output.line("  gpio-read     Read an allowlisted GPIO pin");
     output.line("  gpio-write    Write an allowlisted GPIO pin");
     output.line("  logs          Show bounded device logs");
+    output.line("  dmesg         Show bounded device logs");
     output.line("  ota-status    Show OTA slot state");
     output.line("  app-list      List built-in apps");
     output.line("  app-run       Launch a built-in app");

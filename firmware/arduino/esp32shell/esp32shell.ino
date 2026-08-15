@@ -331,6 +331,7 @@ class Esp32Services final : public DeviceServices {
     if (logs_.count() == 0) { output.line("logs=empty"); return; }
     for (size_t index = 0; index < logs_.count(); ++index) output.line(logs_.at(index));
   }
+  void dmesg(CommandOutput& output) override { logs(output); }
   void otaStatus(CommandOutput& output) override { output.line(ota_.state()); }
   void appList(CommandOutput& output) override {
     output.line(diagnosticsTask_ == nullptr ? "diagnostics stopped" : "diagnostics running");
