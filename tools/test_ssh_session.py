@@ -48,7 +48,8 @@ class SshSessionContractTests(unittest.TestCase):
     def test_authenticated_upload_is_path_restricted(self):
         services = (ROOT / "firmware/esp-idf/main/idf_command_services.h").read_text(encoding="utf-8")
         self.assertIn('std::strncmp(arguments, "/apps/", 6)', services)
-        self.assertIn('std::strstr(arguments, "..")', services)
+        self.assertIn('validFsPath', services)
+        self.assertIn('std::strstr(path, "..")', services)
         self.assertIn('"upload=complete"', services)
 
     def test_idf_wifi_reads_only_provisioned_nvs_credentials(self):
@@ -89,6 +90,43 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("WOPENDIR", filesystem)
         self.assertIn("WPWRITE", filesystem)
 
+    def test_interactive_shell_registers_and_services_channel_request(self):
+        source = (ROOT / "firmware/esp-idf/main/ssh_server.cpp").read_text(encoding="utf-8")
+        self.assertIn("wolfSSH_CTX_SetChannelReqShellCb(context, shell_request)", source)
+        self.assertIn("int shell_request(WOLFSSH_CHANNEL* channel", source)
+        self.assertNotIn("wolfSSH_ChannelIsPty", source)
+        self.assertIn("const int channelResult = wolfSSH_worker(ssh, nullptr)", source)
+        self.assertIn("static volatile bool g_shellRequestAccepted = false", source)
+        self.assertIn("g_shellRequestAccepted = true", source)
+        self.assertIn("while (!g_shellRequestAccepted)", source)
+        self.assertIn("g_shellRequestAccepted = false;\n    int accepted = WS_FATAL_ERROR;", source)
+        self.assertIn("for (; handshakeAttempts < 300; ++handshakeAttempts)", source)
+        self.assertIn("accepted == WS_AUTH_PENDING", source)
+        self.assertIn("error == WS_AUTH_PENDING", source)
+        self.assertNotIn("accepted == WS_CHAN_RXD || accepted == WS_AUTH_PENDING", source)
+        self.assertNotIn("error == WS_CHAN_RXD || error == WS_AUTH_PENDING", source)
+        self.assertIn("vTaskDelay(pdMS_TO_TICKS(10))", source)
+        self.assertNotIn("SshOutput output(ssh);\n  g_shellRequestAccepted = false;", source)
+        self.assertIn("starting common shell session", source)
+        self.assertIn("for (int attempt = 0; attempt < 5; ++attempt)", source)
+        self.assertIn("SSH shell output failed", source)
+        self.assertIn("WS_WINDOW_FULL", source)
+        self.assertIn("SSH TCP client accepted", source)
+        self.assertIn("SSH handshake result=%d error=%d attempts=%d", source)
+        self.assertIn("SSH shell service entered fd=%d", source)
+        self.assertIn("SSH shell worker result=%d error=%d request=%d", source)
+        self.assertIn("SSH shell request state accepted; starting common shell session", source)
+        self.assertIn("SSH shell output sent write=%u bytes=%u", source)
+        self.assertIn("SSH shell read ended result=%d error=%d", source)
+        self.assertIn("SSH shell session ended result=%d error=%d", source)
+        self.assertIn("SSH shutdown result=%d error=%d", source)
+        self.assertIn("SSH diagnostics build marker: post-auth-v1", source)
+        self.assertIn("#include \"../../../common/shell_session.h\"", source)
+        self.assertIn("class SshTransport final : public esp32shell::ShellTransport", source)
+        self.assertIn("esp32shell::ShellSession session(transport, core, services)", source)
+        self.assertNotIn("char echoed[2]", source)
+        self.assertIn('xTaskCreate(ssh_server_task, "ssh-server", 12288', source)
+
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
         self.assertIn("genrsa", script)
@@ -98,6 +136,10 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("writing RSA key", script)
         self.assertIn("separate strong password", script)
         self.assertIn("Start-Process", script)
+        self.assertIn('wifi profile accepted and persisted', script)
+        self.assertIn('Read-Host -Prompt $Prompt -AsSecureString', script)
+        self.assertIn('if ([string]::IsNullOrWhiteSpace($WifiPassword))', script)
+        self.assertIn('if ([string]::IsNullOrWhiteSpace($SshPassword))', script)
 
 
 if __name__ == "__main__":

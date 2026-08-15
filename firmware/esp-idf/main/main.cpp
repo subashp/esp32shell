@@ -8,6 +8,7 @@
 #include "wifi_station.h"
 #include "littlefs_mount.h"
 #include "idf_ota.h"
+#include "idf_log_buffer.h"
 
 extern "C" {
 #include <wolfssl/wolfcrypt/settings.h>
@@ -15,6 +16,7 @@ extern "C" {
 }
 
 extern "C" void app_main() {
+    esp32shell_idf::log_buffer_install();
     ESP_ERROR_CHECK(nvs_flash_init());
     esp32shell_idf::ota_boot_validate();
     ESP_ERROR_CHECK(esp_event_loop_create_default());
