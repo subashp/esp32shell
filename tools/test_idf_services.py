@@ -15,7 +15,6 @@ class EspIdfServiceContractTests(unittest.TestCase):
 
     def test_services_use_real_idf_backends(self):
         for symbol in (
-            "esp_wifi_sta_get_ap_info",
             "nvs_open",
             "nvs_set_str",
             "esp_reset_reason",

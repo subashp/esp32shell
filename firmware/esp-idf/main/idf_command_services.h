@@ -17,6 +17,7 @@
 #include "idf_app_runtime.h"
 #include "idf_log_buffer.h"
 #include "idf_ota.h"
+#include "wifi_station.h"
 #include "../../../arduino/esp32shell/command_core.h"
 
 namespace esp32shell_idf {
@@ -78,19 +79,14 @@ class CommandServices final : public esp32shell::DeviceServices {
   void reboot(esp32shell::CommandOutput& output) override { output.line("rebooting"); esp_restart(); }
 
   void wifiStatus(esp32shell::CommandOutput& output) override {
-    wifi_ap_record_t record{};
-    if (esp_wifi_sta_get_ap_info(&record) != ESP_OK) {
-      output.line("wifi=offline");
-      return;
-    }
-    esp_netif_ip_info_t info{};
-    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    const bool hasIp = netif != nullptr && esp_netif_get_ip_info(netif, &info) == ESP_OK;
-    char line[96];
-    std::snprintf(line, sizeof(line), "wifi=connected ssid=%s ip=" IPSTR " rssi=%d",
-                  reinterpret_cast<char*>(record.ssid), IP2STR(&info.ip), record.rssi);
-    if (!hasIp) std::snprintf(line, sizeof(line), "wifi=connected ssid=%s ip=0.0.0.0 rssi=%d",
-                               reinterpret_cast<char*>(record.ssid), record.rssi);
+    Esp32shellWifiStatus status{};
+    esp32shell_wifi_status(&status);
+    const char* state = status.rssi == 0 ? (status.connecting ? "connecting" : "offline") : "connected";
+    char line[128];
+    std::snprintf(line, sizeof(line), "wifi=%s configured=%s active_profile=%u ssid=%s ip=%s rssi=%d",
+                  state, status.configured ? "yes" : "no", status.activeSlot,
+                  status.activeSsid[0] == '\0' ? "<unset>" : status.activeSsid,
+                  status.ipAddress, status.rssi);
     output.line(line);
   }
 
