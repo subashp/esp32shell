@@ -1,12 +1,13 @@
 #include "idf_app_runtime.h"
 
-#include <cstdio>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 
 #include "driver/gpio.h"
-#include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_log.h"
+#include "esp_system.h"
 #include "nvs.h"
 
 #include "../../../arduino/esp32shell/signed_app_bundle.h"
@@ -58,18 +59,54 @@ class WolfSignatureVerifier final : public esp32shell::AppBundleSignatureVerifie
 
 bool safe_name(const char* name) {
   if (name == nullptr || name[0] == '\0' || std::strlen(name) >= 24) return false;
-  for (const char* p = name; *p != '\0'; ++p) {
+  for (const char* p = name; *p != '\0'; ++p)
     if (!(std::isalnum(static_cast<unsigned char>(*p)) || *p == '-' || *p == '_')) return false;
-  }
   return true;
 }
 }
 
 namespace esp32shell_idf {
 
+AppRuntime::AppRuntime() {
+  std::strcpy(apps_[0].name, "diagnostics"); apps_[0].builtin = true; apps_[0].state = State::Stopped; apps_[0].pin = -1; apps_[0].periodMs = 1000;
+  std::strcpy(apps_[1].name, "led-blink"); apps_[1].builtin = true; apps_[1].state = State::Stopped; apps_[1].pin = 38; apps_[1].periodMs = 500;
+  appCount_ = 2;
+}
+
+const char* AppRuntime::stateName(State state) {
+  switch (state) {
+    case State::Running: return "running";
+    case State::Failed: return "failed";
+    default: return "stopped";
+  }
+}
+
+AppRuntime::AppRecord* AppRuntime::find(const char* name) {
+  if (name == nullptr) return nullptr;
+  for (size_t i = 0; i < appCount_; ++i)
+    if (std::strcmp(apps_[i].name, name) == 0) return &apps_[i];
+  return nullptr;
+}
+
+AppRuntime::AppRecord* AppRuntime::findOrCreateSigned(const char* name) {
+  AppRecord* existing = find(name);
+  if (existing != nullptr) return existing;
+  if (!safe_name(name) || appCount_ >= kMaxApps) return nullptr;
+  AppRecord* app = &apps_[appCount_++];
+  std::strncpy(app->name, name, sizeof(app->name) - 1); app->name[sizeof(app->name) - 1] = '\0';
+  app->builtin = false; app->state = State::Stopped; app->task = nullptr; app->pin = 38;
+  app->periodMs = 500; app->failure[0] = '\0';
+  return app;
+}
+
 void AppRuntime::list(esp32shell::CommandOutput& output) {
-  output.line("apps=signatures-required");
-  if (task_ != nullptr) output.line(running_);
+  for (size_t i = 0; i < appCount_; ++i) {
+    char line[112];
+    std::snprintf(line, sizeof(line), "app=%s type=%s state=%s", apps_[i].name,
+                  apps_[i].builtin ? "builtin" : "signed", stateName(apps_[i].state));
+    output.line(line);
+  }
+  output.line("apps=signed-bundles-require-signature");
 }
 
 bool AppRuntime::loadAndVerify(const char* name, uint8_t** payload, size_t* payloadLength,
@@ -92,59 +129,68 @@ bool AppRuntime::loadAndVerify(const char* name, uint8_t** payload, size_t* payl
   std::fclose(file);
   WolfDigest digest;
   WolfSignatureVerifier verifier;
-  const bool valid = verifier.load() &&
-                     esp32shell::SignedAppBundle::verify(header, name, bytes,
-                                                         header.payloadLength, digest, verifier);
+  const bool valid = verifier.load() && esp32shell::SignedAppBundle::verify(
+      header, name, bytes, header.payloadLength, digest, verifier);
   if (!valid) { heap_caps_free(bytes); output.line("error: app bundle signature rejected"); return false; }
-  *payload = bytes;
-  *payloadLength = header.payloadLength;
-  return true;
+  *payload = bytes; *payloadLength = header.payloadLength; return true;
+}
+
+bool AppRuntime::start(AppRecord* app, esp32shell::CommandOutput& output) {
+  if (app == nullptr) { output.line("error: app is unavailable"); return false; }
+  if (app->task != nullptr) { output.line("error: app is already running"); return false; }
+  if (xTaskCreate(taskThunk, app->name, kStackBytes, app, 1, &app->task) != pdPASS) {
+    app->state = State::Failed; std::strncpy(app->failure, "task allocation failed", sizeof(app->failure) - 1);
+    output.line("error: app task could not start"); return false;
+  }
+  app->state = State::Running; app->failure[0] = '\0';
+  char line[64]; std::snprintf(line, sizeof(line), "app-started=%s", app->name); output.line(line); return true;
 }
 
 bool AppRuntime::run(const char* name, esp32shell::CommandOutput& output) {
-  if (task_ != nullptr) { output.line("error: an app is already running"); return false; }
-  uint8_t* payload = nullptr;
-  size_t length = 0;
-  if (!loadAndVerify(name, &payload, &length, output)) return false;
-  const char* descriptor = reinterpret_cast<const char*>(payload);
-  const bool supported = length < 128 && std::strncmp(descriptor, "builtin=led-blink", 18) == 0;
-  if (!supported) { heap_caps_free(payload); output.line("error: signed app descriptor is unsupported"); return false; }
-  pin_ = 38;
-  periodMs_ = 500;
-  task_ = nullptr;
-  std::strncpy(running_, name, sizeof(running_) - 1);
-  heap_caps_free(payload);
-  if (xTaskCreate(taskThunk, "signed-app", 3072, this, 1, &task_) != pdPASS) {
-    running_[0] = '\0'; output.line("error: signed app task could not start"); return false;
+  AppRecord* app = find(name);
+  if (app == nullptr) {
+    uint8_t* payload = nullptr; size_t length = 0;
+    if (!loadAndVerify(name, &payload, &length, output)) return false;
+    const bool supported = length < 128 && std::strncmp(reinterpret_cast<const char*>(payload), "builtin=led-blink", 18) == 0;
+    heap_caps_free(payload);
+    if (!supported) { output.line("error: signed app descriptor is unsupported"); return false; }
+    app = findOrCreateSigned(name);
   }
-  output.line("signed app started");
-  return true;
+  return start(app, output);
 }
 
 bool AppRuntime::stop(const char* name, esp32shell::CommandOutput& output) {
-  if (task_ == nullptr || std::strcmp(name, running_) != 0) {
-    output.line("error: signed app is not running"); return false;
-  }
-  vTaskDelete(task_);
-  task_ = nullptr;
-  gpio_set_level(static_cast<gpio_num_t>(pin_), 0);
-  running_[0] = '\0';
-  output.line("signed app stopped");
-  return true;
+  AppRecord* app = find(name);
+  if (app == nullptr || app->task == nullptr) { output.line("error: app is not running"); return false; }
+  vTaskDelete(app->task); app->task = nullptr; app->state = State::Stopped;
+  if (app->pin >= 0) gpio_set_level(static_cast<gpio_num_t>(app->pin), 0);
+  char line[64]; std::snprintf(line, sizeof(line), "app-stopped=%s", app->name); output.line(line); return true;
 }
 
 void AppRuntime::status(esp32shell::CommandOutput& output) {
-  if (task_ == nullptr) output.line("signed-app=stopped");
-  else { output.line("signed-app=running"); output.line(running_); }
+  for (size_t i = 0; i < appCount_; ++i) {
+    char line[112];
+    if (apps_[i].state == State::Failed)
+      std::snprintf(line, sizeof(line), "app=%s state=failed reason=%s", apps_[i].name, apps_[i].failure);
+    else
+      std::snprintf(line, sizeof(line), "app=%s state=%s", apps_[i].name, stateName(apps_[i].state));
+    output.line(line);
+  }
 }
 
-void AppRuntime::taskThunk(void* context) { static_cast<AppRuntime*>(context)->taskLoop(); }
-
-void AppRuntime::taskLoop() {
-  gpio_set_direction(static_cast<gpio_num_t>(pin_), GPIO_MODE_OUTPUT);
+void AppRuntime::taskThunk(void* context) {
+  AppRecord* app = static_cast<AppRecord*>(context);
+  // The supervisor is process-lifetime storage; this task intentionally does
+  // not reference an SSH session or CommandServices instance.
   for (;;) {
-    gpio_set_level(static_cast<gpio_num_t>(pin_), !gpio_get_level(static_cast<gpio_num_t>(pin_)));
-    vTaskDelay(pdMS_TO_TICKS(periodMs_));
+    if (app->pin >= 0) {
+      gpio_set_direction(static_cast<gpio_num_t>(app->pin), GPIO_MODE_OUTPUT);
+      gpio_set_level(static_cast<gpio_num_t>(app->pin), !gpio_get_level(static_cast<gpio_num_t>(app->pin)));
+    } else {
+      ESP_LOGI(kTag, "diagnostics app heartbeat heap=%lu",
+               static_cast<unsigned long>(esp_get_free_heap_size()));
+    }
+    vTaskDelay(pdMS_TO_TICKS(app->periodMs));
   }
 }
 
