@@ -36,6 +36,12 @@ class EspIdfServiceContractTests(unittest.TestCase):
         self.assertIn("SignedAppBundle::verify", self.app)
         self.assertIn("/littlefs/apps/%s.bundle", self.app)
 
+    def test_storage_operations_are_bounded_and_credentials_are_preserved(self):
+        for symbol in ("allowedConfigKey", "validFsPath", "buildFsPath", "credentials preserved",
+                       "std::rename", "std::fflush"):
+            self.assertIn(symbol, self.services)
+        self.assertNotIn("nvs_erase_all", self.services)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,6 +41,23 @@ class CommandServices final : public esp32shell::DeviceServices {
     return true;
   }
 
+  static bool allowedConfigKey(const char* key) {
+    return std::strcmp(key, "ssh_username") == 0 ||
+           std::strcmp(key, "ssh_password") == 0 ||
+           std::strcmp(key, "ssh_host_key") == 0;
+  }
+
+  static bool validFsPath(const char* path) {
+    return path != nullptr && path[0] == '/' && std::strlen(path) <= 64 &&
+           std::strstr(path, "..") == nullptr && std::strstr(path, "//") == nullptr;
+  }
+
+  static bool buildFsPath(const char* userPath, char* path, size_t capacity) {
+    if (!validFsPath(userPath)) return false;
+    const int written = std::snprintf(path, capacity, "/littlefs%s", userPath);
+    return written > 0 && static_cast<size_t>(written) < capacity;
+  }
+
   static bool allowedPin(int pin) {
     for (int candidate : kAllowedPins) if (candidate == pin) return true;
     return false;
@@ -161,16 +178,24 @@ class CommandServices final : public esp32shell::DeviceServices {
     nvs_handle_t handle = 0; if (!openNvs(NVS_READWRITE, &handle, output)) return false;
     char key[24]; std::snprintf(key, sizeof(key), "wifi_ssid_%u", slot); nvs_erase_key(handle, key);
     std::snprintf(key, sizeof(key), "wifi_password_%u", slot); nvs_erase_key(handle, key);
+    if (slot == 0) { nvs_erase_key(handle, "wifi_ssid"); nvs_erase_key(handle, "wifi_password"); }
     const bool ok = nvs_commit(handle) == ESP_OK; nvs_close(handle);
     output.line(ok ? "wifi profile cleared" : "error: Wi-Fi profile clear failed"); return ok;
   }
 
   void configList(esp32shell::CommandOutput& output) override {
     nvs_handle_t handle = 0; if (!openNvs(NVS_READONLY, &handle, output)) return;
-    output.line("wifi_ssid_0=protected"); output.line("wifi_password_0=<redacted>");
-    output.line("wifi_ssid_1=protected"); output.line("wifi_password_1=<redacted>");
-    output.line("ssh_username=protected"); output.line("ssh_password=<protected>");
-    output.line("ssh_host_key=<protected>"); nvs_close(handle);
+    const char* keys[] = {"wifi_ssid", "wifi_password", "wifi_ssid_0", "wifi_password_0",
+                          "wifi_ssid_1", "wifi_password_1", "ssh_username", "ssh_password", "ssh_host_key"};
+    for (const char* key : keys) {
+      char value[2] = {}; size_t length = sizeof(value);
+      const bool present = nvs_get_str(handle, key, value, &length) == ESP_OK;
+      char line[64];
+      std::snprintf(line, sizeof(line), "%s=%s", key,
+                    present ? ((std::strstr(key, "password") != nullptr || std::strcmp(key, "ssh_host_key") == 0) ? "<protected>" : "set") : "unset");
+      output.line(line);
+    }
+    nvs_close(handle);
   }
   void configGet(const char* arguments, esp32shell::CommandOutput& output) override {
     if (arguments == nullptr || arguments[0] == '\0') { output.line("error: usage config-get <key>"); return; }
@@ -190,7 +215,9 @@ class CommandServices final : public esp32shell::DeviceServices {
     if (separator == nullptr || separator == arguments || separator[1] == '\0') { output.line("error: usage config-set <key> <value>"); return false; }
     char key[32] = {}; const size_t keyLength = static_cast<size_t>(separator - arguments);
     if (keyLength >= sizeof(key)) { output.line("error: key is too long"); return false; }
-    std::memcpy(key, arguments, keyLength); const bool secret = std::strstr(key, "password") != nullptr || std::strcmp(key, "ssh_host_key") == 0;
+    std::memcpy(key, arguments, keyLength);
+    if (!allowedConfigKey(key)) { output.line("error: key is not allowed"); return false; }
+    const bool secret = std::strstr(key, "password") != nullptr || std::strcmp(key, "ssh_host_key") == 0;
     nvs_handle_t handle = 0; if (!openNvs(NVS_READWRITE, &handle, output)) return false;
     const bool ok = nvs_set_str(handle, key, separator + 1) == ESP_OK && nvs_commit(handle) == ESP_OK; nvs_close(handle);
     output.line(ok ? (secret ? "configuration updated (redacted)" : "configuration updated") : "error: configuration save failed"); return ok;
@@ -198,17 +225,25 @@ class CommandServices final : public esp32shell::DeviceServices {
   bool configClear(const char* arguments, esp32shell::CommandOutput& output) override {
     if (arguments == nullptr || std::strcmp(arguments, "--confirm") != 0) { output.line("error: config-clear requires --confirm"); return false; }
     nvs_handle_t handle = 0; if (!openNvs(NVS_READWRITE, &handle, output)) return false;
-    const bool ok = nvs_erase_all(handle) == ESP_OK && nvs_commit(handle) == ESP_OK; nvs_close(handle);
-    output.line(ok ? "configuration cleared" : "error: configuration clear failed"); return ok;
+    // Wi-Fi and SSH credentials are device access controls and must survive a
+    // generic configuration clear. Only non-critical app/OTA metadata is
+    // removed here; credential removal has dedicated commands.
+    const esp_err_t appKey = nvs_erase_key(handle, "app_public_key");
+    const esp_err_t otaKey = nvs_erase_key(handle, "ota_public_key");
+    const bool ok = (appKey == ESP_OK || appKey == ESP_ERR_NVS_NOT_FOUND) &&
+                    (otaKey == ESP_OK || otaKey == ESP_ERR_NVS_NOT_FOUND) &&
+                    nvs_commit(handle) == ESP_OK;
+    nvs_close(handle);
+    output.line(ok ? "configuration cleared (credentials preserved)" : "error: configuration clear failed"); return ok;
   }
 
   void fsList(const char* arguments, esp32shell::CommandOutput& output) override {
     char path[96] = "/littlefs";
     if (arguments != nullptr && arguments[0] != '\0') {
-      if (arguments[0] != '/' || std::strstr(arguments, "..") != nullptr) {
+      if (!validFsPath(arguments)) {
         output.line("error: usage fs-list <directory>"); return;
       }
-      std::snprintf(path, sizeof(path), "/littlefs%s", arguments);
+      if (!buildFsPath(arguments, path, sizeof(path))) { output.line("error: path is too long"); return; }
     }
     DIR* directory = opendir(path);
     if (directory == nullptr) { output.line("error: LittleFS directory unavailable"); return; }
@@ -223,9 +258,9 @@ class CommandServices final : public esp32shell::DeviceServices {
     closedir(directory);
     if (count == 0) output.line("fs=empty");
   }
-  void fsRead(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr || arguments[0] != '/') { output.line("error: usage fs-read <path>"); return; } char path[96]; std::snprintf(path, sizeof(path), "/littlefs%s", arguments); FILE* file = std::fopen(path, "rb"); if (!file) { output.line("error: file not found"); return; } char buffer[97]; size_t count = std::fread(buffer, 1, sizeof(buffer) - 1, file); buffer[count] = '\0'; std::fclose(file); output.line(buffer); }
-  bool fsWrite(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr || std::strncmp(arguments, "/apps/", 6) != 0 || std::strstr(arguments, "..") != nullptr) { output.line("error: upload path must be under /apps and cannot contain .."); return false; } const char* separator = std::strchr(arguments, ' '); if (!separator || separator == arguments + 6 || !separator[1]) { output.line("error: usage fs-write /apps/<name> <content>"); return false; } char path[96]; const size_t n = static_cast<size_t>(separator - arguments); if (n + 9 >= sizeof(path)) { output.line("error: upload path is too long"); return false; } std::memcpy(path, "/littlefs", 9); std::memcpy(path + 9, arguments, n); path[n + 9] = '\0'; FILE* file = std::fopen(path, "wb"); if (!file) { output.line("error: LittleFS is not mounted"); return false; } const bool ok = std::fwrite(separator + 1, 1, std::strlen(separator + 1), file) == std::strlen(separator + 1); std::fclose(file); output.line(ok ? "upload=complete" : "error: upload write failed"); return ok; }
-  bool fsRemove(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr || std::strncmp(arguments, "/apps/", 6) != 0 || std::strstr(arguments, "..") != nullptr || std::strstr(arguments, " --confirm") == nullptr) { output.line("error: usage fs-remove /apps/<path> --confirm"); return false; } char path[96]; std::snprintf(path, sizeof(path), "/littlefs%s", arguments); char* confirm = std::strstr(path, " --confirm"); *confirm = '\0'; const bool ok = std::remove(path) == 0; output.line(ok ? "file removed" : "error: file remove failed"); return ok; }
+  void fsRead(const char* arguments, esp32shell::CommandOutput& output) override { char path[96]; if (!buildFsPath(arguments, path, sizeof(path))) { output.line("error: usage fs-read <path>"); return; } FILE* file = std::fopen(path, "rb"); if (!file) { output.line("error: file not found"); return; } char buffer[513]; const size_t count = std::fread(buffer, 1, sizeof(buffer) - 1, file); const bool oversized = std::fgetc(file) != EOF; buffer[count] = '\0'; std::fclose(file); if (oversized) { output.line("error: file is too large"); return; } output.line(buffer); }
+  bool fsWrite(const char* arguments, esp32shell::CommandOutput& output) override { const char* separator = arguments == nullptr ? nullptr : std::strchr(arguments, ' '); if (!separator || separator == arguments || !separator[1] || std::strlen(separator + 1) > 512) { output.line("error: usage fs-write /apps/<path> <content>"); return false; } const size_t n = static_cast<size_t>(separator - arguments); char userPath[65] = {}; if (n >= sizeof(userPath) || n < 7 || std::strncmp(arguments, "/apps/", 6) != 0) { output.line("error: upload path must be under /apps"); return false; } std::memcpy(userPath, arguments, n); char path[96]; if (!buildFsPath(userPath, path, sizeof(path))) { output.line("error: invalid path"); return false; } char tempPath[96]; if (std::snprintf(tempPath, sizeof(tempPath), "%s.tmp", path) >= static_cast<int>(sizeof(tempPath))) { output.line("error: path is too long"); return false; } FILE* file = std::fopen(tempPath, "wb"); if (!file) { output.line("error: LittleFS is not mounted"); return false; } const size_t length = std::strlen(separator + 1); const bool ok = std::fwrite(separator + 1, 1, length, file) == length && std::fflush(file) == 0; std::fclose(file); if (ok) std::rename(tempPath, path); else std::remove(tempPath); output.line(ok ? "upload=complete" : "error: upload write failed"); return ok; }
+  bool fsRemove(const char* arguments, esp32shell::CommandOutput& output) override { if (arguments == nullptr) { output.line("error: usage fs-remove /apps/<path> --confirm"); return false; } const char* confirm = std::strstr(arguments, " --confirm"); if (!confirm || confirm[10] != '\0') { output.line("error: usage fs-remove /apps/<path> --confirm"); return false; } char userPath[65] = {}; const size_t n = static_cast<size_t>(confirm - arguments); if (n >= sizeof(userPath) || std::strncmp(arguments, "/apps/", 6) != 0) { output.line("error: invalid path"); return false; } std::memcpy(userPath, arguments, n); char path[96]; if (!buildFsPath(userPath, path, sizeof(path))) { output.line("error: invalid path"); return false; } const bool ok = std::remove(path) == 0; output.line(ok ? "file removed" : "error: file remove failed"); return ok; }
 
   void psram(esp32shell::CommandOutput& output) override { char line[64]; std::snprintf(line, sizeof(line), "psram_free=%lu", static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_SPIRAM))); output.line(line); }
   void resetReason(esp32shell::CommandOutput& output) override { char line[64]; std::snprintf(line, sizeof(line), "reset-reason=%d", static_cast<int>(esp_reset_reason())); output.line(line); }
