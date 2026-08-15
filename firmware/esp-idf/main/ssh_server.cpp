@@ -123,7 +123,12 @@ int shell_request(WOLFSSH_CHANNEL* channel, void*) {
 class SshOutput final : public esp32shell::CommandOutput {
  public:
   explicit SshOutput(WOLFSSH* ssh) : ssh_(ssh) {}
-  void line(const char* text) override {
+  void line(const char* text) override { send_text(text, true); }
+  void raw(const char* text) { send_text(text, false); }
+  void prompt() { send_text("esp32shell>", false); }
+
+ private:
+  void send_text(const char* text, bool newline) {
     if (text == nullptr) return;
     std::unique_ptr<char[]> buffer(
         new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 3]());
@@ -132,7 +137,7 @@ class SshOutput final : public esp32shell::CommandOutput {
       return;
     }
     std::snprintf(buffer.get(), esp32shell::CommandCore::kMaxCommandLength + 3,
-                  "%s\r\n", text);
+                  newline ? "%s\r\n" : "%s", text);
     const word32 length = static_cast<word32>(std::strlen(buffer.get()));
     for (int attempt = 0; attempt < 5; ++attempt) {
       const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer.get()), length);
@@ -153,7 +158,7 @@ class SshOutput final : public esp32shell::CommandOutput {
     }
     ESP_LOGW(kTag, "SSH shell output remained back-pressured");
   }
- private:
+
   WOLFSSH* ssh_;
   unsigned linesSent_ = 0;
 };
@@ -181,7 +186,7 @@ int serve_shell(WOLFSSH* ssh) {
   ESP_LOGI(kTag, "SSH shell request state accepted; sending initial prompt");
   output.line("esp32shell ssh shell");
   output.line("Type 'help' for commands.");
-  output.line("esp32shell>");
+  output.prompt();
   std::unique_ptr<char[]> line(
       new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 1]());
   if (!line) {
@@ -207,18 +212,24 @@ int serve_shell(WOLFSSH* ssh) {
           continue;
         }
         previousWasCarriageReturn = ch == '\r';
+        output.raw("\r\n");
         line[used] = '\0';
         if (core.dispatch(line.get(), output, services) == esp32shell::CommandStatus::SessionClosed) {
           ESP_LOGI(kTag, "SSH shell requested session close");
           return WS_CHANNEL_CLOSED;
         }
         used = 0;
-        output.line("esp32shell>");
+        output.prompt();
       } else if (ch == '\b' || ch == 0x7f) {
-        if (used > 0) --used;
+        if (used > 0) {
+          --used;
+          output.raw("\b \b");
+        }
       } else if (used < esp32shell::CommandCore::kMaxCommandLength) {
         previousWasCarriageReturn = false;
         line[used++] = ch;
+        char echoed[2] = {ch, '\0'};
+        output.raw(echoed);
       } else {
         previousWasCarriageReturn = false;
         output.line("error: command is too long");
