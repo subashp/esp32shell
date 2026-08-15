@@ -48,7 +48,8 @@ class SshSessionContractTests(unittest.TestCase):
     def test_authenticated_upload_is_path_restricted(self):
         services = (ROOT / "firmware/esp-idf/main/idf_command_services.h").read_text(encoding="utf-8")
         self.assertIn('std::strncmp(arguments, "/apps/", 6)', services)
-        self.assertIn('std::strstr(arguments, "..")', services)
+        self.assertIn('validFsPath', services)
+        self.assertIn('std::strstr(path, "..")', services)
         self.assertIn('"upload=complete"', services)
 
     def test_idf_wifi_reads_only_provisioned_nvs_credentials(self):
