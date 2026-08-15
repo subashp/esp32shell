@@ -1,6 +1,8 @@
 #include "ssh_server.h"
 
 #include <cstring>
+#include <memory>
+#include <new>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -123,11 +125,17 @@ class SshOutput final : public esp32shell::CommandOutput {
   explicit SshOutput(WOLFSSH* ssh) : ssh_(ssh) {}
   void line(const char* text) override {
     if (text == nullptr) return;
-    char buffer[esp32shell::CommandCore::kMaxCommandLength + 3] = {};
-    std::snprintf(buffer, sizeof(buffer), "%s\r\n", text);
-    const word32 length = static_cast<word32>(std::strlen(buffer));
+    std::unique_ptr<char[]> buffer(
+        new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 3]());
+    if (!buffer) {
+      ESP_LOGE(kTag, "SSH shell output allocation failed");
+      return;
+    }
+    std::snprintf(buffer.get(), esp32shell::CommandCore::kMaxCommandLength + 3,
+                  "%s\r\n", text);
+    const word32 length = static_cast<word32>(std::strlen(buffer.get()));
     for (int attempt = 0; attempt < 5; ++attempt) {
-      const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer), length);
+      const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer.get()), length);
       if (sent == static_cast<int>(length)) {
         if (linesSent_ < 3) {
           ESP_LOGI(kTag, "SSH shell output sent line=%u bytes=%u",
@@ -174,7 +182,12 @@ int serve_shell(WOLFSSH* ssh) {
   output.line("esp32shell ssh shell");
   output.line("Type 'help' for commands.");
   output.line("esp32shell>");
-  char line[esp32shell::CommandCore::kMaxCommandLength + 1] = {};
+  std::unique_ptr<char[]> line(
+      new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 1]());
+  if (!line) {
+    ESP_LOGE(kTag, "SSH shell input allocation failed");
+    return WS_MEMORY_E;
+  }
   size_t used = 0;
   uint8_t input[64] = {};
   while (true) {
@@ -189,7 +202,7 @@ int serve_shell(WOLFSSH* ssh) {
       const char ch = static_cast<char>(input[i]);
       if (ch == '\r' || ch == '\n') {
         line[used] = '\0';
-        if (core.dispatch(line, output, services) == esp32shell::CommandStatus::SessionClosed) {
+        if (core.dispatch(line.get(), output, services) == esp32shell::CommandStatus::SessionClosed) {
           ESP_LOGI(kTag, "SSH shell requested session close");
           return WS_CHANNEL_CLOSED;
         }
@@ -359,5 +372,5 @@ void ssh_server_task(void*) {
 extern "C" void esp32shell_ssh_start_after_wifi() {
   if (g_startRequested || g_task != nullptr) return;
   g_startRequested = true;
-  xTaskCreate(ssh_server_task, "ssh-server", 8192, nullptr, 3, &g_task);
+  xTaskCreate(ssh_server_task, "ssh-server", 12288, nullptr, 3, &g_task);
 }

@@ -120,6 +120,13 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("SSH shell session ended result=%d error=%d", source)
         self.assertIn("SSH shutdown result=%d error=%d", source)
         self.assertIn("SSH diagnostics build marker: post-auth-v1", source)
+        self.assertIn("#include <memory>", source)
+        self.assertIn("new (std::nothrow)", source)
+        self.assertIn("std::unique_ptr<char[]> buffer", source)
+        self.assertIn("std::unique_ptr<char[]> line", source)
+        self.assertIn('xTaskCreate(ssh_server_task, "ssh-server", 12288', source)
+        self.assertNotIn("char buffer[esp32shell::CommandCore::kMaxCommandLength + 3]", source)
+        self.assertNotIn("char line[esp32shell::CommandCore::kMaxCommandLength + 1]", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")
