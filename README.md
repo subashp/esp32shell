@@ -162,3 +162,17 @@ app-stop led-blink
 The `led-blink` app drives the supported addressable RGB LED. Wi-Fi passwords
 and other sensitive values are stored on the device or in ignored local
 configuration and are not part of the repository documentation.
+
+### SSH client diagnostics
+
+The experimental SSH workflow uses port `22222`. Keep OpenSSH diagnostic
+output out of the interactive shell by redirecting standard error to a local
+file:
+
+```powershell
+ssh -vvv -tt -p 22222 root@<board-ip> 2> ssh-debug.log
+```
+
+Replace `<board-ip>` with the address currently reported by the board. The
+shell remains on the terminal, while OpenSSH `debug3` output is written to
+`ssh-debug.log`.
