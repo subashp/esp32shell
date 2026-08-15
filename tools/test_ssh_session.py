@@ -119,6 +119,7 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn("SSH shell read ended result=%d error=%d", source)
         self.assertIn("SSH shell session ended result=%d error=%d", source)
         self.assertIn("SSH shutdown result=%d error=%d", source)
+        self.assertIn("SSH diagnostics build marker: post-auth-v1", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")

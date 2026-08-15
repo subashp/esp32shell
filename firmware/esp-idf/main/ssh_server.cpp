@@ -242,6 +242,7 @@ int serve_sftp(WOLFSSH* ssh) {
 
 void ssh_server_task(void*) {
   g_task = xTaskGetCurrentTaskHandle();
+  ESP_LOGI(kTag, "SSH diagnostics build marker: post-auth-v1");
   if (!load_auth_config()) {
     ESP_LOGW(kTag, "SSH disabled: NVS needs username, password digest, and ASN.1 host key");
     g_task = nullptr;
