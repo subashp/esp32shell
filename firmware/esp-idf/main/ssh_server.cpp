@@ -12,6 +12,7 @@
 #include "nvs_flash.h"
 
 #include "idf_command_services.h"
+#include "../../../common/shell_session.h"
 
 extern "C" {
 #include <wolfssl/wolfcrypt/sha256.h>
@@ -120,53 +121,65 @@ int shell_request(WOLFSSH_CHANNEL* channel, void*) {
   return WS_SUCCESS;
 }
 
-class SshOutput final : public esp32shell::CommandOutput {
+class SshTransport final : public esp32shell::ShellTransport {
  public:
-  explicit SshOutput(WOLFSSH* ssh) : ssh_(ssh) {}
-  void line(const char* text) override { send_text(text, true); }
-  void raw(const char* text) { send_text(text, false); }
-  void prompt() { send_text("esp32shell>", false); }
+  explicit SshTransport(WOLFSSH* ssh) : ssh_(ssh) {}
 
- private:
-  void send_text(const char* text, bool newline) {
-    if (text == nullptr) return;
-    std::unique_ptr<char[]> buffer(
-        new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 3]());
-    if (!buffer) {
-      ESP_LOGE(kTag, "SSH shell output allocation failed");
-      return;
+  esp32shell::ShellReadStatus read(uint8_t* buffer, size_t capacity,
+                                   size_t& length) override {
+    length = 0;
+    const int received = wolfSSH_stream_read(
+        ssh_, buffer, static_cast<word32>(capacity));
+    if (received > 0) {
+      length = static_cast<size_t>(received);
+      return esp32shell::ShellReadStatus::Data;
     }
-    std::snprintf(buffer.get(), esp32shell::CommandCore::kMaxCommandLength + 3,
-                  newline ? "%s\r\n" : "%s", text);
-    const word32 length = static_cast<word32>(std::strlen(buffer.get()));
+    if (received == WS_WANT_READ || received == WS_WANT_WRITE) {
+      return esp32shell::ShellReadStatus::WouldBlock;
+    }
+    ESP_LOGI(kTag, "SSH shell read ended result=%d error=%d", received,
+             wolfSSH_get_error(ssh_));
+    return received == 0 ? esp32shell::ShellReadStatus::Closed
+                         : esp32shell::ShellReadStatus::Error;
+  }
+
+  bool write(const char* data, size_t length) override {
+    if (data == nullptr || length == 0) return true;
     for (int attempt = 0; attempt < 5; ++attempt) {
-      const int sent = wolfSSH_stream_send(ssh_, reinterpret_cast<byte*>(buffer.get()), length);
+      const int sent = wolfSSH_stream_send(
+          ssh_, reinterpret_cast<byte*>(const_cast<char*>(data)),
+          static_cast<word32>(length));
       if (sent == static_cast<int>(length)) {
-        if (linesSent_ < 3) {
-          ESP_LOGI(kTag, "SSH shell output sent line=%u bytes=%u",
-                   static_cast<unsigned>(linesSent_ + 1),
+        if (writesSent_ < 3) {
+          ESP_LOGI(kTag, "SSH shell output sent write=%u bytes=%u",
+                   static_cast<unsigned>(writesSent_ + 1),
                    static_cast<unsigned>(length));
         }
-        ++linesSent_;
-        return;
+        ++writesSent_;
+        return true;
       }
       if (sent != WS_WANT_WRITE && sent != WS_WINDOW_FULL) {
-        ESP_LOGW(kTag, "SSH shell output failed (%d, attempt=%d)", sent, attempt + 1);
-        return;
+        ESP_LOGW(kTag, "SSH shell output failed (%d, attempt=%d)", sent,
+                 attempt + 1);
+        return false;
       }
       vTaskDelay(pdMS_TO_TICKS(10));
     }
     ESP_LOGW(kTag, "SSH shell output remained back-pressured");
+    return false;
   }
 
+  bool connected() const override { return ssh_ != nullptr; }
+
+ private:
   WOLFSSH* ssh_;
-  unsigned linesSent_ = 0;
+  unsigned writesSent_ = 0;
 };
 
 int serve_shell(WOLFSSH* ssh) {
   esp32shell::CommandCore core;
   esp32shell_idf::CommandServices services;
-  SshOutput output(ssh);
+  SshTransport transport(ssh);
   ESP_LOGI(kTag, "SSH shell service entered fd=%d", wolfSSH_get_fd(ssh));
   // Authentication/channel open completes before interactive requests arrive.
   // Keep servicing wolfSSH until the shell callback has accepted the request;
@@ -183,60 +196,14 @@ int serve_shell(WOLFSSH* ssh) {
       return channelResult;
     }
   }
-  ESP_LOGI(kTag, "SSH shell request state accepted; sending initial prompt");
-  output.line("esp32shell ssh shell");
-  output.line("Type 'help' for commands.");
-  output.prompt();
-  std::unique_ptr<char[]> line(
-      new (std::nothrow) char[esp32shell::CommandCore::kMaxCommandLength + 1]());
-  if (!line) {
-    ESP_LOGE(kTag, "SSH shell input allocation failed");
-    return WS_MEMORY_E;
+  ESP_LOGI(kTag, "SSH shell request state accepted; starting common shell session");
+  esp32shell::ShellSession session(transport, core, services);
+  const esp32shell::ShellSessionResult result = session.run();
+  if (result == esp32shell::ShellSessionResult::CommandRequestedClose) {
+    ESP_LOGI(kTag, "SSH shell requested session close");
+    return WS_CHANNEL_CLOSED;
   }
-  size_t used = 0;
-  bool previousWasCarriageReturn = false;
-  uint8_t input[64] = {};
-  while (true) {
-    const int received = wolfSSH_stream_read(ssh, input, sizeof(input));
-    if (received == WS_WANT_READ || received == WS_WANT_WRITE) continue;
-    if (received <= 0) {
-      ESP_LOGI(kTag, "SSH shell read ended result=%d error=%d", received,
-               wolfSSH_get_error(ssh));
-      return received;
-    }
-    for (int i = 0; i < received; ++i) {
-      const char ch = static_cast<char>(input[i]);
-      if (ch == '\r' || ch == '\n') {
-        if (ch == '\n' && previousWasCarriageReturn) {
-          previousWasCarriageReturn = false;
-          continue;
-        }
-        previousWasCarriageReturn = ch == '\r';
-        output.raw("\r\n");
-        line[used] = '\0';
-        if (core.dispatch(line.get(), output, services) == esp32shell::CommandStatus::SessionClosed) {
-          ESP_LOGI(kTag, "SSH shell requested session close");
-          return WS_CHANNEL_CLOSED;
-        }
-        used = 0;
-        output.prompt();
-      } else if (ch == '\b' || ch == 0x7f) {
-        if (used > 0) {
-          --used;
-          output.raw("\b \b");
-        }
-      } else if (used < esp32shell::CommandCore::kMaxCommandLength) {
-        previousWasCarriageReturn = false;
-        line[used++] = ch;
-        char echoed[2] = {ch, '\0'};
-        output.raw(echoed);
-      } else {
-        previousWasCarriageReturn = false;
-        output.line("error: command is too long");
-        used = 0;
-      }
-    }
-  }
+  return result == esp32shell::ShellSessionResult::Error ? WS_MEMORY_E : WS_CHANNEL_CLOSED;
 }
 
 int serve_sftp(WOLFSSH* ssh) {
