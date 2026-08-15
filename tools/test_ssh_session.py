@@ -127,6 +127,8 @@ class SshSessionContractTests(unittest.TestCase):
         self.assertIn('xTaskCreate(ssh_server_task, "ssh-server", 12288', source)
         self.assertNotIn("char buffer[esp32shell::CommandCore::kMaxCommandLength + 3]", source)
         self.assertNotIn("char line[esp32shell::CommandCore::kMaxCommandLength + 1]", source)
+        self.assertIn("bool previousWasCarriageReturn = false", source)
+        self.assertIn("if (ch == '\\n' && previousWasCarriageReturn)", source)
 
     def test_uart_provisioning_generates_der_key_without_persisting_secrets(self):
         script = (ROOT / "tools/provision_ssh.ps1").read_text(encoding="utf-8")

@@ -189,6 +189,7 @@ int serve_shell(WOLFSSH* ssh) {
     return WS_MEMORY_E;
   }
   size_t used = 0;
+  bool previousWasCarriageReturn = false;
   uint8_t input[64] = {};
   while (true) {
     const int received = wolfSSH_stream_read(ssh, input, sizeof(input));
@@ -201,6 +202,11 @@ int serve_shell(WOLFSSH* ssh) {
     for (int i = 0; i < received; ++i) {
       const char ch = static_cast<char>(input[i]);
       if (ch == '\r' || ch == '\n') {
+        if (ch == '\n' && previousWasCarriageReturn) {
+          previousWasCarriageReturn = false;
+          continue;
+        }
+        previousWasCarriageReturn = ch == '\r';
         line[used] = '\0';
         if (core.dispatch(line.get(), output, services) == esp32shell::CommandStatus::SessionClosed) {
           ESP_LOGI(kTag, "SSH shell requested session close");
@@ -211,8 +217,10 @@ int serve_shell(WOLFSSH* ssh) {
       } else if (ch == '\b' || ch == 0x7f) {
         if (used > 0) --used;
       } else if (used < esp32shell::CommandCore::kMaxCommandLength) {
+        previousWasCarriageReturn = false;
         line[used++] = ch;
       } else {
+        previousWasCarriageReturn = false;
         output.line("error: command is too long");
         used = 0;
       }
