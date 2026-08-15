@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "driver/gpio.h"
+#include "led_strip.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -22,6 +23,31 @@ constexpr char kTag[] = "esp32shell-app";
 constexpr char kNvsNamespace[] = "esp32shell";
 constexpr size_t kHeaderSize = sizeof(esp32shell::SignedAppBundleHeader);
 constexpr size_t kMaxPayload = esp32shell::SignedAppBundle::kMaxPayloadLength;
+led_strip_handle_t g_rgbLed = nullptr;
+
+bool ensure_rgb_led() {
+  if (g_rgbLed != nullptr) return true;
+  led_strip_config_t stripConfig = {};
+  stripConfig.strip_gpio_num = 38;
+  stripConfig.max_leds = 1;
+  stripConfig.led_model = LED_MODEL_WS2812;
+  stripConfig.led_pixel_format = LED_PIXEL_FORMAT_GRB;
+  led_strip_rmt_config_t rmtConfig = {};
+  rmtConfig.clk_src = RMT_CLK_SRC_DEFAULT;
+  rmtConfig.resolution_hz = 10 * 1000 * 1000;
+  rmtConfig.mem_block_symbols = 64;
+  return led_strip_new_rmt_device(&stripConfig, &rmtConfig, &g_rgbLed) == ESP_OK;
+}
+
+void set_rgb(bool on) {
+  if (!ensure_rgb_led()) {
+    ESP_LOGW(kTag, "RGB LED driver initialization failed");
+    return;
+  }
+  if (on) led_strip_set_pixel(g_rgbLed, 0, 0, 24, 0);
+  else led_strip_clear(g_rgbLed);
+  led_strip_refresh(g_rgbLed);
+}
 
 class WolfDigest final : public esp32shell::AppBundleDigest {
  public:
@@ -163,7 +189,7 @@ bool AppRuntime::stop(const char* name, esp32shell::CommandOutput& output) {
   AppRecord* app = find(name);
   if (app == nullptr || app->task == nullptr) { output.line("error: app is not running"); return false; }
   vTaskDelete(app->task); app->task = nullptr; app->state = State::Stopped;
-  if (app->pin >= 0) gpio_set_level(static_cast<gpio_num_t>(app->pin), 0);
+  if (app->pin >= 0) set_rgb(false);
   char line[64]; std::snprintf(line, sizeof(line), "app-stopped=%s", app->name); output.line(line); return true;
 }
 
@@ -184,8 +210,9 @@ void AppRuntime::taskThunk(void* context) {
   // not reference an SSH session or CommandServices instance.
   for (;;) {
     if (app->pin >= 0) {
-      gpio_set_direction(static_cast<gpio_num_t>(app->pin), GPIO_MODE_OUTPUT);
-      gpio_set_level(static_cast<gpio_num_t>(app->pin), !gpio_get_level(static_cast<gpio_num_t>(app->pin)));
+      static bool ledOn = false;
+      ledOn = !ledOn;
+      set_rgb(ledOn);
     } else {
       ESP_LOGI(kTag, "diagnostics app heartbeat heap=%lu",
                static_cast<unsigned long>(esp_get_free_heap_size()));

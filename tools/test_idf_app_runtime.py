@@ -18,6 +18,8 @@ class EspIdfAppRuntimeContractTests(unittest.TestCase):
         self.assertIn('"led-blink"', self.source)
         self.assertIn("kMaxApps = 4", self.header)
         self.assertIn("AppRuntime& apps()", (ROOT / "firmware/esp-idf/main/idf_command_services.h").read_text(encoding="utf-8"))
+        self.assertIn("led_strip_set_pixel", self.source)
+        self.assertIn("led_strip_refresh", self.source)
 
     def test_lifecycle_is_not_owned_by_shell_session(self):
         self.assertIn("xTaskCreate(taskThunk", self.source)
